@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CV Self-Training Console</title>
+<link rel="stylesheet" href="../design-system/tokens.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--ds-navy-900);color:var(--ds-ink);font-family:var(--ds-font);font-size:var(--ds-t-md)}
+button,input,select{font-family:inherit}
+.app{display:grid;grid-template-columns:270px 1fr 320px;grid-template-rows:auto 1fr;height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:var(--ds-4);padding:var(--ds-3) var(--ds-5);
+  background:var(--ds-navy-800);border-bottom:1px solid var(--ds-line)}
+header h1{font-size:var(--ds-t-lg);margin:0;font-weight:600}
+header h1 em{font-style:normal;color:var(--ds-coral)}
+.spacer{flex:1}
+.status{font-family:var(--ds-mono);font-size:var(--ds-t-xs);color:var(--ds-ink-faint)}
+aside{background:var(--ds-navy-800);padding:var(--ds-4);overflow-y:auto}
+aside.left{border-right:1px solid var(--ds-line)}
+aside.right{border-left:1px solid var(--ds-line)}
+h3{font-size:var(--ds-t-xs);letter-spacing:.1em;text-transform:uppercase;color:var(--ds-ink-faint);
+  margin:var(--ds-5) 0 var(--ds-3);font-weight:600}
+h3:first-child{margin-top:0}
+label{display:block;font-size:var(--ds-t-xs);color:var(--ds-ink-dim);margin-bottom:var(--ds-1)}
+input,select{width:100%;background:var(--ds-navy-900);border:1px solid var(--ds-line);color:var(--ds-ink);
+  border-radius:var(--ds-r-sm);padding:6px var(--ds-2);font-size:var(--ds-t-sm);margin-bottom:var(--ds-3)}
+input:focus,select:focus{outline:none;border-color:var(--ds-coral)}
+.btn{font-size:var(--ds-t-md);padding:var(--ds-2) var(--ds-4);border-radius:var(--ds-r-sm);
+  border:1px solid transparent;cursor:pointer;transition:.15s}
+.btn-sm{font-size:var(--ds-t-sm);padding:var(--ds-1) var(--ds-3)}
+.btn-primary{background:var(--ds-coral);color:#fff}
+.btn-primary:hover{background:var(--ds-coral-700)}
+.btn-ghost{background:transparent;color:var(--ds-ink-dim);border-color:var(--ds-line)}
+.btn-ghost:hover{color:var(--ds-ink);border-color:var(--ds-coral)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-block{width:100%;margin-bottom:var(--ds-2)}
+main{display:flex;flex-direction:column;overflow:hidden}
+.toolbar{display:flex;align-items:center;gap:var(--ds-2);padding:var(--ds-3) var(--ds-5);
+  border-bottom:1px solid var(--ds-line);flex-wrap:wrap}
+.toolbar .sel-count{font-family:var(--ds-mono);font-size:var(--ds-t-sm);color:var(--ds-coral);min-width:84px}
+.kbd{font-family:var(--ds-mono);font-size:10px;color:var(--ds-ink-faint);border:1px solid var(--ds-line);
+  border-radius:3px;padding:0 3px;margin-left:3px}
+.wall{flex:1;overflow-y:auto;padding:var(--ds-5);display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--ds-4);
+  align-content:start;grid-auto-rows:max-content}   /* max-content：不然 .card 的 overflow:hidden 會讓 row 被壓扁 */
+.card{background:var(--ds-navy-800);border:2px solid var(--ds-line);border-radius:var(--ds-r);
+  overflow:hidden;cursor:pointer;transition:.12s}
+.card:hover{border-color:var(--ds-navy-700);transform:translateY(-2px)}
+.card.sel{border-color:var(--ds-coral);box-shadow:0 0 0 3px rgba(217,119,87,.22)}
+.thumb{aspect-ratio:4/3;position:relative;background:var(--ds-navy-900);display:block;width:100%;object-fit:cover}
+.thumb-wrap{position:relative}
+.badge{position:absolute;top:var(--ds-2);left:var(--ds-2);font-size:var(--ds-t-xs);font-family:var(--ds-mono);
+  padding:2px 6px;border-radius:var(--ds-r-sm);color:#0B0E1F;font-weight:700}
+.meta{padding:var(--ds-2) var(--ds-3)}
+.name{font-size:var(--ds-t-xs);font-family:var(--ds-mono);color:var(--ds-ink-dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;gap:var(--ds-1);margin-top:var(--ds-2);flex-wrap:wrap}
+.chip{font-size:10px;padding:1px 6px;border-radius:99px;background:rgba(217,119,87,.13);
+  color:var(--ds-coral);border:1px solid rgba(217,119,87,.3)}
+.empty{grid-column:1/-1;text-align:center;color:var(--ds-ink-faint);padding:80px var(--ds-5);line-height:2}
+.stats{display:flex;gap:var(--ds-2);margin-bottom:var(--ds-3)}
+.stat{flex:1;background:var(--ds-navy-900);border:1px solid var(--ds-line);border-radius:var(--ds-r);
+  padding:var(--ds-2);text-align:center}
+.stat b{display:block;font-size:var(--ds-t-xl);font-family:var(--ds-mono);line-height:1.1}
+.stat span{font-size:10px;color:var(--ds-ink-faint);text-transform:uppercase;letter-spacing:.08em}
+.bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--ds-navy-900);margin-bottom:var(--ds-2)}
+.bar i{display:block;height:100%}
+.warn{font-size:var(--ds-t-xs);color:var(--ds-warn);margin-bottom:var(--ds-3)}
+.ok{font-size:var(--ds-t-xs);color:var(--ds-ok);margin-bottom:var(--ds-3)}
+.dist{font-size:var(--ds-t-xs);color:var(--ds-ink-dim)}
+.dist div{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--ds-line)}
+.dist b{font-family:var(--ds-mono);color:var(--ds-ink)}
+.ratio-row{display:flex;gap:var(--ds-2)}
+.ratio-row>div{flex:1}
+.log{font-family:var(--ds-mono);font-size:10px;color:var(--ds-ink-faint);background:var(--ds-navy-900);
+  border:1px solid var(--ds-line);border-radius:var(--ds-r-sm);padding:var(--ds-2);height:92px;
+  overflow-y:auto;white-space:pre-wrap;margin-top:var(--ds-2)}
+.progress{height:6px;background:var(--ds-navy-900);border-radius:99px;overflow:hidden;margin-top:var(--ds-2)}
+.progress i{display:block;height:100%;background:var(--ds-coral);width:0;transition:width .2s}
+#selftest{padding:var(--ds-5);font-family:var(--ds-mono);font-size:var(--ds-t-sm);white-space:pre-wrap}
+@media (max-width:1100px){.app{grid-template-columns:1fr;grid-template-rows:auto auto auto auto;height:auto}
+  aside{border:0;border-bottom:1px solid var(--ds-line)}.wall{max-height:60vh}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <h1>CV <em>Self-Training</em> Console</h1>
+    <span class="status" id="src">尚未載入資料</span>
+    <span class="spacer"></span>
+    <span class="status">device: <b id="dev">mps</b></span>
+  </header>
+
+  <aside class="left">
+    <h3>資料來源 · Roboflow</h3>
+    <label>Workspace slug</label><input id="ws" placeholder="my-workspace">
+    <label>Project slug</label><input id="pj" placeholder="wafer-defects">
+    <label>API key（只存本機 localStorage）</label><input id="key" type="password" placeholder="rf_...">
+    <label>抓幾張</label><input id="limit" type="number" value="60" min="1" max="500">
+    <button class="btn btn-primary btn-block" id="load">載入 Roboflow 影像</button>
+    <button class="btn btn-ghost btn-block" id="demo">載入示範資料（離線）</button>
+
+    <h3>篩選</h3>
+    <label>檔名包含</label><input id="q" placeholder="wafer_00">
+    <label>類別</label><select id="fcls"><option value="">全部</option></select>
+    <label>目前 split</label>
+    <select id="fsplit">
+      <option value="">全部</option><option value="train">train</option>
+      <option value="valid">valid</option><option value="test">test</option>
+      <option value="unassigned">未指派</option>
+    </select>
+
+    <h3>類別分佈</h3>
+    <div class="dist" id="dist"><div><span>（無資料）</span></div></div>
+  </aside>
+
+  <main>
+    <div class="toolbar">
+      <span class="sel-count" id="selcount">已選 0 張</span>
+      <button class="btn btn-sm btn-ghost" id="all">全選可見</button>
+      <button class="btn btn-sm btn-ghost" id="none">取消選取</button>
+      <span style="width:var(--ds-4)"></span>
+      <button class="btn btn-sm btn-primary" data-assign="train">指派 train<span class="kbd">1</span></button>
+      <button class="btn btn-sm btn-primary" data-assign="valid">指派 valid<span class="kbd">2</span></button>
+      <button class="btn btn-sm btn-primary" data-assign="test">指派 test<span class="kbd">3</span></button>
+      <button class="btn btn-sm btn-ghost" data-assign="">清除<span class="kbd">0</span></button>
+      <span class="spacer"></span>
+      <span class="status" id="shown">0 / 0</span>
+    </div>
+    <div class="wall" id="wall">
+      <div class="empty">左邊填 Roboflow workspace / project / API key 按「載入」<br>沒有 key 就先按「載入示範資料」——整條流程一樣跑得完</div>
+    </div>
+  </main>
+
+  <aside class="right">
+    <h3>Split 狀態</h3>
+    <div class="stats">
+      <div class="stat"><b id="n-train" style="color:var(--ds-train)">0</b><span>train</span></div>
+      <div class="stat"><b id="n-valid" style="color:var(--ds-valid)">0</b><span>valid</span></div>
+      <div class="stat"><b id="n-test"  style="color:var(--ds-test)">0</b><span>test</span></div>
+    </div>
+    <div class="bar" id="bar"></div>
+    <div id="health" class="warn">還沒有資料</div>
+
+    <h3>自動分層抽樣</h3>
+    <div class="ratio-row">
+      <div><label>train %</label><input id="r-train" type="number" value="70" min="0" max="100"></div>
+      <div><label>valid %</label><input id="r-valid" type="number" value="20" min="0" max="100"></div>
+      <div><label>test %</label><input id="r-test" type="number" value="10" min="0" max="100"></div>
+    </div>
+    <label>random seed</label><input id="seed" type="number" value="42">
+    <button class="btn btn-ghost btn-block" id="strat">照類別分層抽樣</button>
+
+    <h3>訓練設定</h3>
+    <label>模型</label>
+    <select id="model"><option>yolov8n</option><option>yolov8s</option><option>yolov8m</option></select>
+    <label>epochs</label><input id="epochs" type="number" value="50" min="1">
+    <label>imgsz</label><input id="imgsz" type="number" value="640" step="32">
+    <label>device</label><select id="device"><option>mps</option><option>cpu</option><option>cuda</option></select>
+    <button class="btn btn-primary btn-block" id="train">開始訓練</button>
+    <div class="progress"><i id="pbar"></i></div>
+    <div class="log" id="log">尚未開始。</div>
+
+    <h3>匯出</h3>
+    <button class="btn btn-ghost btn-block" id="ex-json">下載 splits.json</button>
+    <button class="btn btn-ghost btn-block" id="ex-yaml">下載 data.yaml</button>
+  </aside>
+</div>
+<pre id="selftest" hidden></pre>
+
+<script>
+// ---------- state ----------
+let IMAGES = [];              // {id,name,url,cls[],split}
+let SELECTED = new Set();
+let lastIdx = null;
+const $ = s => document.querySelector(s);
+
+// ---------- 分層抽樣（唯一非 trivial 的邏輯，下面有 selftest） ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+function stratifiedSplit(items, ratios, seed){
+  // items: [{id, cls:[...]}]、ratios: {train,valid,test}（可不等於 1，會自動正規化）
+  const total = ratios.train + ratios.valid + ratios.test;
+  if (total <= 0) throw new Error('比例不能全為 0');
+  const p = {train:ratios.train/total, valid:ratios.valid/total, test:ratios.test/total};
+  const rnd = mulberry32(seed >>> 0);
+  const groups = new Map();
+  for (const it of items){
+    const k = (it.cls && it.cls.length) ? it.cls[0] : '__none__';   // 用主類別分層
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(it);
+  }
+  const out = {};
+  for (const [, g] of [...groups].sort((a,b)=>a[0]<b[0]?-1:1)){     // 排序 → 同 seed 同結果
+    const arr = g.slice();
+    for (let i=arr.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}
+    // 最大餘數法：確保三份加起來剛好等於這一組的張數，不會少一張或多一張
+    const raw = {train:arr.length*p.train, valid:arr.length*p.valid, test:arr.length*p.test};
+    const n = {train:Math.floor(raw.train), valid:Math.floor(raw.valid), test:Math.floor(raw.test)};
+    let left = arr.length - n.train - n.valid - n.test;
+    const order = ['train','valid','test'].sort((a,b)=>(raw[b]-n[b])-(raw[a]-n[a]));
+    for (let i=0;i<left;i++) n[order[i % 3]]++;
+    let c = 0;
+    for (const s of ['train','valid','test']) for (let i=0;i<n[s];i++) out[arr[c++].id] = s;
+  }
+  return out;
+}
+
+// ---------- 資料載入 ----------
+async function loadRoboflow(){
+  const ws=$('#ws').value.trim(), pj=$('#pj').value.trim(), key=$('#key').value.trim();
+  if(!ws||!pj||!key){ alert('workspace / project / API key 三個都要填'); return; }
+  localStorage.setItem('rf', JSON.stringify({ws,pj,key}));
+  $('#src').textContent = '載入中…';
+  const url = `https://api.roboflow.com/${encodeURIComponent(ws)}/${encodeURIComponent(pj)}/search?api_key=${encodeURIComponent(key)}`;
+  try{
+    const res = await fetch(url,{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({limit:+$('#limit').value||60, offset:0,
+        fields:['id','name','owner','url','split','tags','annotations']})});
+    if(!res.ok) throw new Error(`HTTP ${res.status} ${await res.text()}`.slice(0,200));
+    const data = await res.json();
+    IMAGES = (data.results||[]).map(r=>({
+      id:r.id, name:r.name||r.id,
+      url:r.url || `https://source.roboflow.com/${r.owner}/${r.id}/thumb.jpg`,
+      cls:Object.keys(r.annotations?.classes||{}),
+      counts:r.annotations?.classes||{},
+      split:['train','valid','test'].includes(r.split)?r.split:null
+    }));
+    $('#src').textContent = `Roboflow · ${ws}/${pj} · ${IMAGES.length}/${data.total??IMAGES.length} 張`;
+  }catch(e){
+    $('#src').textContent = '載入失敗';
+    alert('Roboflow 載入失敗：\n'+e.message+'\n\n常見原因：slug 拼錯、API key 是 publishable 而非 private key、專案沒有影像。');
+    return;
+  }
+  afterLoad();
+}
+
+function loadDemo(){
+  const rnd = mulberry32(7);
+  const classes = ['scratch','particle','ring','edge-loss'];
+  IMAGES = Array.from({length:48},(_,i)=>{
+    const cls = classes[Math.floor(rnd()*classes.length)];
+    const n = 1+Math.floor(rnd()*5);
+    return {id:'demo'+i, name:`wafer_${String(i).padStart(4,'0')}.jpg`,
+            url:waferSVG(i,cls,rnd), cls:[cls], counts:{[cls]:n}, split:null};
+  });
+  $('#src').textContent = `示範資料（離線合成）· ${IMAGES.length} 張`;
+  afterLoad();
+}
+
+function waferSVG(i,cls,rnd){   // 合成晶圓圖，讓沒有 Roboflow 帳號的人也看得到「有東西」
+  const hue = {scratch:0,particle:45,ring:265,'edge-loss':150}[cls];
+  let defects='';
+  for(let k=0;k<6;k++){
+    const x=30+rnd()*140, y=20+rnd()*110, r=2+rnd()*5;
+    defects += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="hsl(${hue} 80% 60% / .85)"/>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150">
+    <rect width="200" height="150" fill="#141B3D"/>
+    <circle cx="100" cy="75" r="62" fill="#1E2761" stroke="#2E3768"/>
+    <circle cx="100" cy="75" r="40" fill="none" stroke="#263173"/>
+    ${defects}
+    <text x="8" y="143" fill="#6B7399" font-family="Menlo" font-size="9">${cls}</text></svg>`;
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+}
+
+function afterLoad(){
+  SELECTED.clear(); lastIdx=null;
+  const all = new Set(); IMAGES.forEach(i=>i.cls.forEach(c=>all.add(c)));
+  $('#fcls').innerHTML = '<option value="">全部</option>' + [...all].sort().map(c=>`<option>${c}</option>`).join('');
+  render();
+}
+
+// ---------- render ----------
+function visible(){
+  const q=$('#q').value.trim().toLowerCase(), fc=$('#fcls').value, fs=$('#fsplit').value;
+  return IMAGES.filter(im=>
+    (!q || im.name.toLowerCase().includes(q)) &&
+    (!fc || im.cls.includes(fc)) &&
+    (!fs || (fs==='unassigned' ? !im.split : im.split===fs)));
+}
+
+function render(){
+  const vis = visible(), wall = $('#wall');
+  wall.innerHTML = vis.length ? '' :
+    '<div class="empty">這個篩選條件下沒有影像。</div>';
+  vis.forEach((im,idx)=>{
+    const el = document.createElement('div');
+    el.className = 'card' + (SELECTED.has(im.id)?' sel':'');
+    const color = im.split ? `var(--ds-${im.split})` : 'var(--ds-unassigned)';
+    el.innerHTML = `<div class="thumb-wrap">
+        <img class="thumb" loading="lazy" src="${im.url}" alt="${im.name}"
+             onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))">
+        <span class="badge" style="background:${color}">${im.split||'—'}</span></div>
+      <div class="meta"><div class="name" title="${im.name}">${im.name}</div>
+        <div class="chips">${Object.entries(im.counts||{}).map(([c,n])=>`<span class="chip">${c} ×${n}</span>`).join('')
+          || '<span class="chip">未標註</span>'}</div></div>`;
+    el.onclick = e => { toggle(im.id, idx, vis, e.shiftKey); };
+    wall.appendChild(el);
+  });
+  $('#shown').textContent = `${vis.length} / ${IMAGES.length}`;
+  $('#selcount').textContent = `已選 ${SELECTED.size} 張`;
+  renderStats();
+}
+
+function toggle(id, idx, vis, range){
+  if (range && lastIdx!==null){
+    const [a,b] = idx<lastIdx ? [idx,lastIdx] : [lastIdx,idx];
+    for (let i=a;i<=b;i++) SELECTED.add(vis[i].id);
+  } else {
+    SELECTED.has(id) ? SELECTED.delete(id) : SELECTED.add(id);
+    lastIdx = idx;
+  }
+  render();
+}
+
+function renderStats(){
+  const c = {train:0,valid:0,test:0,none:0};
+  IMAGES.forEach(i => c[i.split||'none']++);
+  $('#n-train').textContent=c.train; $('#n-valid').textContent=c.valid; $('#n-test').textContent=c.test;
+  const t = IMAGES.length || 1;
+  $('#bar').innerHTML = ['train','valid','test','unassigned'].map(k=>{
+    const v = k==='unassigned'?c.none:c[k];
+    return `<i style="width:${v/t*100}%;background:var(--ds-${k})" title="${k} ${v}"></i>`;
+  }).join('');
+
+  const h = $('#health');
+  if (!IMAGES.length){ h.className='warn'; h.textContent='還沒有資料'; }
+  else if (c.none){ h.className='warn'; h.textContent=`⚠ 還有 ${c.none} 張沒指派，訓練前要清乾淨`; }
+  else if (!c.valid){ h.className='warn'; h.textContent='⚠ valid 是 0 — 沒有驗證集你看不到 overfit'; }
+  else { h.className='ok'; h.textContent=`✓ ${IMAGES.length} 張全部指派完成，可以開訓`; }
+
+  const dist = {};
+  IMAGES.forEach(i=>i.cls.forEach(cl=>{
+    dist[cl] = dist[cl] || {train:0,valid:0,test:0,none:0};
+    dist[cl][i.split||'none']++;
+  }));
+  const rows = Object.entries(dist).sort();
+  $('#dist').innerHTML = rows.length ? rows.map(([cl,d])=>
+    `<div><span>${cl}</span><b>${d.train}/${d.valid}/${d.test}${d.none?` <span style="color:var(--ds-warn)">+${d.none}</span>`:''}</b></div>`
+  ).join('') + '<div style="border:0;color:var(--ds-ink-faint);padding-top:6px">train / valid / test</div>'
+    : '<div><span>（無資料）</span></div>';
+}
+
+// ---------- actions ----------
+function assign(split){
+  if (!SELECTED.size){ return; }
+  IMAGES.forEach(i => { if (SELECTED.has(i.id)) i.split = split || null; });
+  SELECTED.clear(); render();
+}
+
+function download(name, text, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text],{type}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function runTraining(){
+  const none = IMAGES.filter(i=>!i.split).length;
+  if (!IMAGES.length) return alert('先載入資料');
+  if (none) return alert(`還有 ${none} 張沒指派 split。先按「照類別分層抽樣」或手動指派。`);
+  const cfg = {model:$('#model').value, epochs:+$('#epochs').value,
+               imgsz:+$('#imgsz').value, device:$('#device').value};
+  const log = $('#log'); log.textContent=''; $('#train').disabled = true;
+  const push = s => { log.textContent += s+'\n'; log.scrollTop = log.scrollHeight; };
+  push(`$ autocv train --model ${cfg.model} --epochs ${cfg.epochs} --imgsz ${cfg.imgsz} --device ${cfg.device}`);
+  push(`dataset: ${IMAGES.filter(i=>i.split==='train').length} train / ${IMAGES.filter(i=>i.split==='valid').length} valid / ${IMAGES.filter(i=>i.split==='test').length} test`);
+  let e = 0;
+  const timer = setInterval(()=>{
+    e++;
+    const loss = (1.8*Math.exp(-e/(cfg.epochs*0.35))+0.12).toFixed(3);
+    const map  = (0.92*(1-Math.exp(-e/(cfg.epochs*0.3)))).toFixed(3);
+    push(`epoch ${String(e).padStart(3)}/${cfg.epochs}  box_loss ${loss}  mAP50 ${map}`);
+    $('#pbar').style.width = (e/cfg.epochs*100)+'%';
+    if (e>=cfg.epochs){ clearInterval(timer); push('done → runs/train/weights/best.pt'); $('#train').disabled=false; }
+  }, 60);
+}
+
+// ---------- wire ----------
+$('#load').onclick = loadRoboflow;
+$('#demo').onclick = loadDemo;
+['#q','#fcls','#fsplit'].forEach(s=>$(s).addEventListener('input',render));
+$('#all').onclick = ()=>{ visible().forEach(i=>SELECTED.add(i.id)); render(); };
+$('#none').onclick = ()=>{ SELECTED.clear(); render(); };
+document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=()=>assign(b.dataset.assign));
+$('#device').onchange = e => $('#dev').textContent = e.target.value;
+$('#strat').onclick = ()=>{
+  if(!IMAGES.length) return alert('先載入資料');
+  const map = stratifiedSplit(IMAGES, {train:+$('#r-train').value, valid:+$('#r-valid').value,
+                                       test:+$('#r-test').value}, +$('#seed').value);
+  IMAGES.forEach(i => i.split = map[i.id] || null);
+  SELECTED.clear(); render();
+};
+$('#train').onclick = runTraining;
+$('#ex-json').onclick = ()=> download('splits.json', JSON.stringify({
+  generated: new Date().toISOString(), source: $('#src').textContent,
+  seed: +$('#seed').value,
+  splits: ['train','valid','test'].reduce((o,s)=>
+    (o[s]=IMAGES.filter(i=>i.split===s).map(i=>({id:i.id,name:i.name,url:i.url})),o),{})
+}, null, 2), 'application/json');
+$('#ex-yaml').onclick = ()=>{
+  const names = [...new Set(IMAGES.flatMap(i=>i.cls))].sort();
+  download('data.yaml',
+`# 由 CV Self-Training Console 產生
+path: ./dataset
+train: images/train
+val: images/valid
+test: images/test
+nc: ${names.length}
+names: [${names.map(n=>`'${n}'`).join(', ')}]
+`, 'text/yaml');
+};
+document.addEventListener('keydown', e=>{
+  if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  const m = {'1':'train','2':'valid','3':'test','0':''};
+  if (e.key in m) assign(m[e.key]);
+});
+try{ const s=JSON.parse(localStorage.getItem('rf')||'{}');
+  if(s.ws)$('#ws').value=s.ws; if(s.pj)$('#pj').value=s.pj; if(s.key)$('#key').value=s.key; }catch{}
+
+// ---------- self-check：?selftest=1 ----------
+if (new URLSearchParams(location.search).get('selftest')){
+  $('#app').hidden = true; const out = $('#selftest'); out.hidden = false;
+  const lines = []; let fail = 0;
+  const ok = (name, cond) => { lines.push((cond?'PASS  ':'FAIL  ')+name); if(!cond) fail++; };
+  const mk = (n, cls) => Array.from({length:n},(_,i)=>({id:cls+i, cls:[cls]}));
+  const items = [...mk(10,'a'), ...mk(7,'b'), ...mk(1,'c')];   // 18 張，含只有 1 張的邊界類別
+
+  const m = stratifiedSplit(items, {train:70,valid:20,test:10}, 42);
+  ok('每張都被指派到剛好一個 split', items.every(i=>['train','valid','test'].includes(m[i.id])));
+  ok('總數守恆（18）', Object.keys(m).length === 18);
+  const cnt = s => items.filter(i=>m[i.id]===s).length;
+  ok(`train 約 70%（得到 ${cnt('train')}/18）`, Math.abs(cnt('train')-12.6) <= 1.5);
+  const aTrain = items.filter(i=>i.cls[0]==='a' && m[i.id]==='train').length;
+  ok(`分層：a 類 10 張裡 train 應 ~7（得到 ${aTrain}）`, Math.abs(aTrain-7) <= 1);
+  ok('只有 1 張的類別也有去處', ['train','valid','test'].includes(m['c0']));
+
+  const m2 = stratifiedSplit(items, {train:70,valid:20,test:10}, 42);
+  ok('同 seed → 完全相同結果', JSON.stringify(m)===JSON.stringify(m2));
+  const m3 = stratifiedSplit(items, {train:70,valid:20,test:10}, 43);
+  ok('不同 seed → 結果不同', JSON.stringify(m)!==JSON.stringify(m3));
+
+  const m4 = stratifiedSplit(items, {train:1,valid:0,test:0}, 1);
+  ok('比例 100/0/0 → 全進 train', items.every(i=>m4[i.id]==='train'));
+  let threw=false; try{ stratifiedSplit(items,{train:0,valid:0,test:0},1) }catch{ threw=true }
+  ok('比例全 0 → 丟錯而不是靜默壞掉', threw);
+
+  out.textContent = lines.join('\n') + `\n\n${fail?'❌ '+fail+' 項失敗':'✅ 全部通過'}`;
+  out.style.color = fail ? '#E06C75' : '#4FB286';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!-- @dsCard group="Components" name="Buttons" subtitle="primary / ghost / danger, 2 sizes" -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body{margin:0;padding:var(--ds-5);background:var(--ds-navy-900);font-family:var(--ds-font)}
+  .row{display:flex;gap:var(--ds-3);align-items:center;margin-bottom:var(--ds-4)}
+  .btn{font-family:inherit;font-size:var(--ds-t-md);padding:var(--ds-2) var(--ds-4);border-radius:var(--ds-r-sm);
+       border:1px solid transparent;cursor:pointer;transition:.15s}
+  .btn-sm{font-size:var(--ds-t-sm);padding:var(--ds-1) var(--ds-3)}
+  .btn-primary{background:var(--ds-coral);color:#fff}
+  .btn-primary:hover{background:var(--ds-coral-700)}
+  .btn-ghost{background:transparent;color:var(--ds-ink-dim);border-color:var(--ds-line)}
+  .btn-ghost:hover{color:var(--ds-ink);border-color:var(--ds-coral)}
+  .btn-danger{background:transparent;color:var(--ds-err);border-color:var(--ds-err)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+</style>
+<div class="row">
+  <button class="btn btn-primary">開始訓練</button>
+  <button class="btn btn-ghost">自動分層 70/20/10</button>
+  <button class="btn btn-danger">清空指派</button>
+  <button class="btn btn-primary" disabled>開始訓練</button>
+</div>
+<div class="row">
+  <button class="btn btn-sm btn-primary">train</button>
+  <button class="btn btn-sm btn-ghost">valid</button>
+  <button class="btn btn-sm btn-ghost">test</button>
+</div>

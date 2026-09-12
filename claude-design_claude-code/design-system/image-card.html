@@ -1,0 +1,30 @@
+<!-- @dsCard group="Components" name="Image card" subtitle="縮圖 + split badge + class chips + 選取態" -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body{margin:0;padding:var(--ds-5);background:var(--ds-navy-900);font-family:var(--ds-font)}
+  .grid{display:grid;grid-template-columns:repeat(3,160px);gap:var(--ds-4)}
+  .card{background:var(--ds-navy-800);border:2px solid var(--ds-line);border-radius:var(--ds-r);overflow:hidden;cursor:pointer}
+  .card.sel{border-color:var(--ds-coral);box-shadow:0 0 0 3px rgba(217,119,87,.25)}
+  .thumb{height:110px;background:linear-gradient(135deg,#2A3573,#141B3D);position:relative}
+  .badge{position:absolute;top:var(--ds-2);left:var(--ds-2);font-size:var(--ds-t-xs);font-family:var(--ds-mono);
+         padding:2px 6px;border-radius:var(--ds-r-sm);color:#0B0E1F;font-weight:700}
+  .meta{padding:var(--ds-2) var(--ds-3)}
+  .name{font-size:var(--ds-t-xs);font-family:var(--ds-mono);color:var(--ds-ink-dim);
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chips{display:flex;gap:var(--ds-1);margin-top:var(--ds-2);flex-wrap:wrap}
+  .chip{font-size:var(--ds-t-xs);padding:1px 6px;border-radius:99px;background:rgba(217,119,87,.15);color:var(--ds-coral-700);border:1px solid rgba(217,119,87,.35)}
+</style>
+<div class="grid">
+  <div class="card sel">
+    <div class="thumb"><span class="badge" style="background:var(--ds-train)">train</span></div>
+    <div class="meta"><div class="name">wafer_0012.jpg</div><div class="chips"><span class="chip">scratch ×2</span></div></div>
+  </div>
+  <div class="card">
+    <div class="thumb"><span class="badge" style="background:var(--ds-valid)">valid</span></div>
+    <div class="meta"><div class="name">wafer_0031.jpg</div><div class="chips"><span class="chip">particle ×5</span></div></div>
+  </div>
+  <div class="card">
+    <div class="thumb"><span class="badge" style="background:var(--ds-unassigned)">—</span></div>
+    <div class="meta"><div class="name">wafer_0044.jpg</div><div class="chips"><span class="chip">未標註</span></div></div>
+  </div>
+</div>

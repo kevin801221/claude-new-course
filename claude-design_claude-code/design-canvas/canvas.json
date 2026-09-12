@@ -1,0 +1,23 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "CV Self-Training Console", "is_interactive": true },
+    { "file": "Components.dc.html", "x": 1560, "y": 0, "w": 880, "h": 700, "title": "Design System" }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -150,
+      "w": 520,
+      "text": "從 Roboflow 載圖 → 前端預覽 → 自己指派 train/valid/test → 匯出 splits.json。\n左邊那張是可以點的：點縮圖選取，再按指派，統計和類別分佈會跟著動。\n「照類別分層抽樣」跑的是真的分層 + 最大餘數法，seed 固定。"
+    },
+    {
+      "id": "ds-note",
+      "x": 1560,
+      "y": -150,
+      "w": 400,
+      "text": "顏色不是這裡挑的，是 design-system/tokens.css 定的。\ntrain/valid/test/unassigned 四個語意色會同時出現在 badge、\n統計數字、比例條、類別分佈——所以必須是 token。"
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

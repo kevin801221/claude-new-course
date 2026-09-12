@@ -1,0 +1,46 @@
+/* ============================================================
+   CV Console Design System — tokens
+   單一真相：顏色 / 字級 / 間距 / 圓角 都只能從這裡拿。
+   Claude Design 會讀這份，產出的畫面自動帶 Kevin 課程配色。
+   ============================================================ */
+:root {
+  /* Brand — Midnight Executive（和 PPT 同一套） */
+  --ds-navy-900:  #141B3D;   /* app 背景 */
+  --ds-navy-800:  #1E2761;   /* 面板 */
+  --ds-navy-700:  #263173;   /* 卡片 hover */
+  --ds-coral:     #D97757;   /* 主要動作 / 強調 */
+  --ds-coral-700: #C2603F;   /* 主要動作 hover */
+
+  /* Ink */
+  --ds-ink:       #F2F4FB;
+  --ds-ink-dim:   #A7AEC8;
+  --ds-ink-faint: #6B7399;
+  --ds-line:      #2E3768;
+
+  /* Split 語意色 — 整個 app 只認這四個 */
+  --ds-train:      #4FB286;
+  --ds-valid:      #E3B341;
+  --ds-test:       #8B7BE8;
+  --ds-unassigned: #5A628C;
+
+  /* Status */
+  --ds-ok:   #4FB286;
+  --ds-warn: #E3B341;
+  --ds-err:  #E06C75;
+
+  /* Space (4pt grid) */
+  --ds-1: 4px;  --ds-2: 8px;  --ds-3: 12px;
+  --ds-4: 16px; --ds-5: 24px; --ds-6: 32px;
+
+  /* Radius */
+  --ds-r-sm: 6px; --ds-r: 10px; --ds-r-lg: 16px;
+
+  /* Type */
+  --ds-font: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Segoe UI", sans-serif;
+  --ds-mono: Menlo, ui-monospace, "SF Mono", monospace;   /* Kevin 規定：code 一律 Menlo */
+  --ds-t-xs: 11px; --ds-t-sm: 12px; --ds-t-md: 14px;
+  --ds-t-lg: 18px; --ds-t-xl: 24px; --ds-t-2xl: 34px;
+
+  /* Elevation */
+  --ds-shadow: 0 8px 24px rgba(0,0,0,.35);
+}

@@ -1,0 +1,340 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Segoe UI", sans-serif; }
+    a { color: #D97757; } a:hover { color: #C2603F; }
+    .fld { width: 100%; box-sizing: border-box; background: #141B3D; border: 1px solid #2E3768;
+           color: #F2F4FB; border-radius: 6px; padding: 6px 8px; font-size: 12px;
+           font-family: inherit; margin-bottom: 12px; }
+    .h3 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #6B7399;
+          font-weight: 600; margin: 0 0 12px; }
+    .lb { font-size: 11px; color: #A7AEC8; margin-bottom: 4px; }
+    .bt { font-family: inherit; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #141B3D; color: #F2F4FB; overflow: hidden; display: flex; flex-direction: column">
+
+  <!-- header -->
+  <div style="display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: #1E2761; border-bottom: 1px solid #2E3768">
+    <div style="font-size: 18px; font-weight: 600">CV <span style="color: {{accent}}">Self-Training</span> Console</div>
+    <div style="font-family: Menlo, ui-monospace, monospace; font-size: 11px; color: #6B7399">{{source}}</div>
+    <div style="flex-grow: 1"></div>
+    <div style="font-family: Menlo, ui-monospace, monospace; font-size: 11px; color: #6B7399">device: mps</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 270px minmax(0, 1fr) 320px; flex-grow: 1; min-height: 0">
+
+    <!-- ============ LEFT ============ -->
+    <div style="background: #1E2761; border-right: 1px solid #2E3768; padding: 16px; overflow: hidden">
+      <div class="h3">資料來源 · Roboflow</div>
+      <div class="lb">Workspace slug</div>
+      <div class="fld" style="color: #6B7399">my-workspace</div>
+      <div class="lb">Project slug</div>
+      <div class="fld" style="color: #6B7399">wafer-defects</div>
+      <div class="lb">API key（只存本機 localStorage）</div>
+      <div class="fld" style="color: #6B7399; font-family: Menlo, ui-monospace, monospace">••••••••••••••••</div>
+      <button class="bt" style="width: 100%; background: {{accent}}; color: #fff; font-size: 14px; padding: 8px 16px; margin-bottom: 8px">載入 Roboflow 影像</button>
+      <button class="bt" style="width: 100%; background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 14px; padding: 8px 16px">載入示範資料（離線）</button>
+
+      <div class="h3" style="margin-top: 24px">篩選</div>
+      <div class="lb">檔名包含</div>
+      <div class="fld" style="color: #6B7399">wafer_00</div>
+      <div class="lb">類別</div>
+      <div class="fld" style="display: flex; justify-content: space-between; align-items: center">
+        <span>全部</span><span style="color: #6B7399">v</span>
+      </div>
+
+      <div class="h3" style="margin-top: 24px">類別分佈</div>
+      <div style="font-size: 11px; color: #A7AEC8">
+        <sc-for list="{{dist}}" as="row" hint-placeholder-count="4">
+          <div style="display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #2E3768">
+            <span>{{row.name}}</span>
+            <span style="font-family: Menlo, ui-monospace, monospace; color: #F2F4FB">{{row.tally}}</span>
+          </div>
+        </sc-for>
+        <div style="color: #6B7399; padding-top: 6px">train / valid / test</div>
+      </div>
+    </div>
+
+    <!-- ============ CENTER ============ -->
+    <div style="display: flex; flex-direction: column; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 12px 24px; border-bottom: 1px solid #2E3768">
+        <div style="font-family: Menlo, ui-monospace, monospace; font-size: 12px; color: {{accent}}; min-width: 84px">已選 {{selCount}} 張</div>
+        <button class="bt" onClick="{{selectAll}}" style="background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 12px; padding: 4px 12px">全選可見</button>
+        <button class="bt" onClick="{{selectNone}}" style="background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 12px; padding: 4px 12px">取消選取</button>
+        <div style="width: 16px"></div>
+        <button class="bt" onClick="{{toTrain}}" style="background: {{accent}}; color: #fff; font-size: 12px; padding: 4px 12px">指派 train</button>
+        <button class="bt" onClick="{{toValid}}" style="background: {{accent}}; color: #fff; font-size: 12px; padding: 4px 12px">指派 valid</button>
+        <button class="bt" onClick="{{toTest}}" style="background: {{accent}}; color: #fff; font-size: 12px; padding: 4px 12px">指派 test</button>
+        <button class="bt" onClick="{{toClear}}" style="background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 12px; padding: 4px 12px">清除</button>
+        <div style="flex-grow: 1"></div>
+        <div style="font-family: Menlo, ui-monospace, monospace; font-size: 11px; color: #6B7399">{{shown}}</div>
+      </div>
+
+      <div style="flex-grow: 1; min-height: 0; overflow: auto; padding: 24px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-content: start; grid-auto-rows: max-content">
+        <sc-for list="{{images}}" as="item" hint-placeholder-count="8">
+          <div onClick="{{item.pick}}" style="{{item.cardStyle}}">
+            <div style="position: relative; height: {{thumbH}}; background: #141B3D; overflow: hidden">
+              <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 108px; height: 108px; border-radius: 50%; background: #1E2761; border: 1px solid #2E3768"></div>
+              <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 68px; height: 68px; border-radius: 50%; border: 1px solid #263173"></div>
+              <sc-for list="{{item.dots}}" as="d" hint-placeholder-count="4">
+                <div style="{{d.style}}"></div>
+              </sc-for>
+              <div style="{{item.badgeStyle}}">{{item.badge}}</div>
+            </div>
+            <div style="padding: 8px 12px">
+              <div style="font-size: 11px; font-family: Menlo, ui-monospace, monospace; color: #A7AEC8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{item.name}}</div>
+              <div style="display: flex; gap: 4px; margin-top: 8px">
+                <span style="font-size: 10px; padding: 1px 6px; border-radius: 99px; background: rgba(217,119,87,.13); color: {{accent}}; border: 1px solid rgba(217,119,87,.3)">{{item.chip}}</span>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- ============ RIGHT ============ -->
+    <div style="background: #1E2761; border-left: 1px solid #2E3768; padding: 16px; overflow: hidden">
+      <div class="h3">Split 狀態</div>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px">
+        <div style="flex-grow: 1; background: #141B3D; border: 1px solid #2E3768; border-radius: 10px; padding: 8px; text-align: center">
+          <div style="font-size: 34px; font-family: Menlo, ui-monospace, monospace; line-height: 1.1; color: #4FB286">{{nTrain}}</div>
+          <div style="font-size: 10px; color: #6B7399; letter-spacing: .08em">TRAIN</div>
+        </div>
+        <div style="flex-grow: 1; background: #141B3D; border: 1px solid #2E3768; border-radius: 10px; padding: 8px; text-align: center">
+          <div style="font-size: 34px; font-family: Menlo, ui-monospace, monospace; line-height: 1.1; color: #E3B341">{{nValid}}</div>
+          <div style="font-size: 10px; color: #6B7399; letter-spacing: .08em">VALID</div>
+        </div>
+        <div style="flex-grow: 1; background: #141B3D; border: 1px solid #2E3768; border-radius: 10px; padding: 8px; text-align: center">
+          <div style="font-size: 34px; font-family: Menlo, ui-monospace, monospace; line-height: 1.1; color: #8B7BE8">{{nTest}}</div>
+          <div style="font-size: 10px; color: #6B7399; letter-spacing: .08em">TEST</div>
+        </div>
+      </div>
+
+      <div style="display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: #141B3D; margin-bottom: 8px">
+        <sc-for list="{{bars}}" as="b" hint-placeholder-count="4">
+          <div style="{{b.style}}"></div>
+        </sc-for>
+      </div>
+      <div style="font-size: 11px; color: {{healthColor}}; margin-bottom: 24px">{{health}}</div>
+
+      <div class="h3">自動分層抽樣</div>
+      <div style="display: flex; gap: 8px">
+        <div style="flex-grow: 1">
+          <div class="lb">train %</div><div class="fld">70</div>
+        </div>
+        <div style="flex-grow: 1">
+          <div class="lb">valid %</div><div class="fld">20</div>
+        </div>
+        <div style="flex-grow: 1">
+          <div class="lb">test %</div><div class="fld">10</div>
+        </div>
+      </div>
+      <div class="lb">random seed</div>
+      <div class="fld" style="font-family: Menlo, ui-monospace, monospace">42</div>
+      <button class="bt" onClick="{{stratify}}" style="width: 100%; background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 14px; padding: 8px 16px">照類別分層抽樣</button>
+
+      <div class="h3" style="margin-top: 24px">訓練設定</div>
+      <div class="lb">模型</div>
+      <div class="fld" style="display: flex; justify-content: space-between; align-items: center"><span>yolov8n</span><span style="color: #6B7399">v</span></div>
+      <div style="display: flex; gap: 8px">
+        <div style="flex-grow: 1"><div class="lb">epochs</div><div class="fld" style="font-family: Menlo, ui-monospace, monospace">50</div></div>
+        <div style="flex-grow: 1"><div class="lb">imgsz</div><div class="fld" style="font-family: Menlo, ui-monospace, monospace">640</div></div>
+      </div>
+      <button class="bt" style="width: 100%; background: {{accent}}; color: #fff; font-size: 14px; padding: 8px 16px; margin-bottom: 12px">開始訓練</button>
+
+      <div class="h3">匯出</div>
+      <div style="display: flex; gap: 8px">
+        <button class="bt" style="flex-grow: 1; background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 12px; padding: 6px 12px">splits.json</button>
+        <button class="bt" style="flex-grow: 1; background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 12px; padding: 6px 12px">data.yaml</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "accent": { "editor": "color", "default": "#D97757", "options": ["#D97757", "#4FB286", "#8B7BE8", "#E3B341"], "section": "主題" },
+  "density": { "editor": "enum", "options": ["comfortable", "compact"], "default": "comfortable", "section": "主題" },
+  "$preview": { "width": 1440, "height": 900 }
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { images: this.seedImages(), sel: {} };
+  }
+
+  // --- 合成 16 張假晶圓圖（4 類別 × 4 張），seed 固定所以每次開都一樣 ---
+  seedImages() {
+    var rnd = this.prng(7);
+    var CLASSES = ['scratch', 'particle', 'ring', 'edge-loss'];
+    var HUE = { scratch: '#E06C75', particle: '#E3B341', ring: '#8B7BE8', 'edge-loss': '#4FB286' };
+    var out = [];
+    for (var i = 0; i < 16; i++) {
+      var cls = CLASSES[i % 4];
+      var dots = [];
+      var n = 2 + Math.floor(rnd() * 4);
+      for (var k = 0; k < n; k++) {
+        var s = 4 + Math.round(rnd() * 5);
+        var x = 40 + Math.round(rnd() * 108);
+        var y = 18 + Math.round(rnd() * 62);
+        dots.push({
+          style: 'position:absolute;left:' + x + 'px;top:' + y + 'px;width:' + s + 'px;height:' + s +
+                 'px;border-radius:50%;background:' + HUE[cls]
+        });
+      }
+      out.push({
+        id: 'w' + i,
+        name: 'wafer_' + String(i).padStart(4, '0') + '.jpg',
+        cls: cls,
+        count: n,
+        dots: dots,
+        split: null
+      });
+    }
+    return out;
+  }
+
+  prng(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // --- 照類別分層 + 最大餘數法，跟 prototype/index.html 同一套邏輯 ---
+  stratify() {
+    var p = { train: 0.7, valid: 0.2, test: 0.1 };
+    var rnd = this.prng(42);
+    var groups = {};
+    this.state.images.forEach(function (im) {
+      if (!groups[im.cls]) groups[im.cls] = [];
+      groups[im.cls].push(im.id);
+    });
+    var map = {};
+    Object.keys(groups).sort().forEach(function (k) {
+      var arr = groups[k].slice();
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(rnd() * (i + 1));
+        var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      }
+      var raw = { train: arr.length * p.train, valid: arr.length * p.valid, test: arr.length * p.test };
+      var n = { train: Math.floor(raw.train), valid: Math.floor(raw.valid), test: Math.floor(raw.test) };
+      var left = arr.length - n.train - n.valid - n.test;
+      var order = ['train', 'valid', 'test'].sort(function (a, b) {
+        return (raw[b] - n[b]) - (raw[a] - n[a]);
+      });
+      for (var q = 0; q < left; q++) n[order[q % 3]]++;
+      var c = 0;
+      ['train', 'valid', 'test'].forEach(function (s) {
+        for (var z = 0; z < n[s]; z++) map[arr[c++]] = s;
+      });
+    });
+    this.setState({
+      images: this.state.images.map(function (im) {
+        return Object.assign({}, im, { split: map[im.id] || null });
+      }),
+      sel: {}
+    });
+  }
+
+  assign(split) {
+    var sel = this.state.sel;
+    this.setState({
+      images: this.state.images.map(function (im) {
+        return sel[im.id] ? Object.assign({}, im, { split: split }) : im;
+      }),
+      sel: {}
+    });
+  }
+
+  renderVals() {
+    var self = this;
+    var accent = this.props.accent || '#D97757';
+    var compact = this.props.density === 'compact';
+    var COLOR = { train: '#4FB286', valid: '#E3B341', test: '#8B7BE8' };
+    var imgs = this.state.images;
+    var sel = this.state.sel;
+
+    var c = { train: 0, valid: 0, test: 0, none: 0 };
+    imgs.forEach(function (im) { c[im.split || 'none']++; });
+
+    var dist = {};
+    imgs.forEach(function (im) {
+      if (!dist[im.cls]) dist[im.cls] = { train: 0, valid: 0, test: 0, none: 0 };
+      dist[im.cls][im.split || 'none']++;
+    });
+
+    var health, healthColor;
+    if (c.none) { health = '還有 ' + c.none + ' 張沒指派，訓練前要清乾淨'; healthColor = '#E3B341'; }
+    else if (!c.valid) { health = 'valid 是 0 — 沒有驗證集你看不到 overfit'; healthColor = '#E3B341'; }
+    else { health = imgs.length + ' 張全部指派完成，可以開訓'; healthColor = '#4FB286'; }
+
+    return {
+      accent: accent,
+      source: '示範資料（離線合成）· ' + imgs.length + ' 張',
+      thumbH: compact ? '80px' : '104px',
+      selCount: Object.keys(sel).length,
+      shown: imgs.length + ' / ' + imgs.length,
+      nTrain: c.train, nValid: c.valid, nTest: c.test,
+      health: health, healthColor: healthColor,
+
+      bars: ['train', 'valid', 'test', 'none'].map(function (k) {
+        var col = k === 'none' ? '#5A628C' : COLOR[k];
+        var pct = (c[k] / imgs.length) * 100;
+        return { style: 'width:' + pct + '%;background:' + col };
+      }),
+
+      dist: Object.keys(dist).sort().map(function (k) {
+        var d = dist[k];
+        return { name: k, tally: d.train + '/' + d.valid + '/' + d.test };
+      }),
+
+      images: imgs.map(function (im) {
+        var isSel = !!sel[im.id];
+        var col = im.split ? COLOR[im.split] : '#5A628C';
+        return Object.assign({}, im, {
+          badge: im.split || '—',
+          chip: im.cls + ' x' + im.count,
+          cardStyle: 'background:#1E2761;border:2px solid ' + (isSel ? accent : '#2E3768') +
+                     ';border-radius:10px;overflow:hidden;cursor:pointer' +
+                     (isSel ? ';box-shadow:0 0 0 3px rgba(217,119,87,.22)' : ''),
+          badgeStyle: 'position:absolute;top:8px;left:8px;font-size:11px;font-weight:700;' +
+                      'font-family:Menlo,ui-monospace,monospace;padding:2px 6px;border-radius:6px;' +
+                      'color:#0B0E1F;background:' + col,
+          pick: function () {
+            var next = Object.assign({}, self.state.sel);
+            if (next[im.id]) delete next[im.id]; else next[im.id] = true;
+            self.setState({ sel: next });
+          }
+        });
+      }),
+
+      selectAll: function () {
+        var next = {};
+        self.state.images.forEach(function (im) { next[im.id] = true; });
+        self.setState({ sel: next });
+      },
+      selectNone: function () { self.setState({ sel: {} }); },
+      toTrain: function () { self.assign('train'); },
+      toValid: function () { self.assign('valid'); },
+      toTest: function () { self.assign('test'); },
+      toClear: function () { self.assign(null); },
+      stratify: function () { self.stratify(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

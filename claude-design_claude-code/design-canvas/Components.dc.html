@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Segoe UI", sans-serif; }
+    a { color: #D97757; } a:hover { color: #C2603F; }
+    .h3 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #6B7399;
+          font-weight: 600; margin: 0 0 12px; }
+    .sw { width: 96px; }
+    .chip { height: 48px; border-radius: 10px; border: 1px solid #2E3768; }
+    .nm { font-size: 11px; margin-top: 8px; color: #A7AEC8; }
+    .hx { font-family: Menlo, ui-monospace, monospace; font-size: 11px; color: #6B7399; }
+    .bt { font-family: inherit; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }
+    .card { background: #1E2761; border: 2px solid #2E3768; border-radius: 10px; overflow: hidden; width: 150px; }
+    .badge { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 700;
+             font-family: Menlo, ui-monospace, monospace; padding: 2px 6px; border-radius: 6px; color: #0B0E1F; }
+  </style>
+</helmet>
+
+<div style="width: 880px; height: 700px; background: #141B3D; color: #F2F4FB; padding: 24px; box-sizing: border-box; overflow: hidden">
+
+  <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px">CV Console — Design System</div>
+  <div style="font-size: 12px; color: #6B7399; font-family: Menlo, ui-monospace, monospace; margin-bottom: 24px">design-system/tokens.css · 單一真相</div>
+
+  <div class="h3">Brand</div>
+  <div style="display: flex; gap: 12px; margin-bottom: 24px">
+    <div class="sw"><div class="chip" style="background: #141B3D"></div><div class="nm">navy-900</div><div class="hx">#141B3D</div></div>
+    <div class="sw"><div class="chip" style="background: #1E2761"></div><div class="nm">navy-800</div><div class="hx">#1E2761</div></div>
+    <div class="sw"><div class="chip" style="background: #263173"></div><div class="nm">navy-700</div><div class="hx">#263173</div></div>
+    <div class="sw"><div class="chip" style="background: #D97757"></div><div class="nm">coral</div><div class="hx">#D97757</div></div>
+    <div class="sw"><div class="chip" style="background: #C2603F"></div><div class="nm">coral-700</div><div class="hx">#C2603F</div></div>
+  </div>
+
+  <div class="h3">Split semantics — 全 app 只認這四個</div>
+  <div style="display: flex; gap: 12px; margin-bottom: 24px">
+    <div class="sw"><div class="chip" style="background: #4FB286"></div><div class="nm">train</div><div class="hx">#4FB286</div></div>
+    <div class="sw"><div class="chip" style="background: #E3B341"></div><div class="nm">valid</div><div class="hx">#E3B341</div></div>
+    <div class="sw"><div class="chip" style="background: #8B7BE8"></div><div class="nm">test</div><div class="hx">#8B7BE8</div></div>
+    <div class="sw"><div class="chip" style="background: #5A628C"></div><div class="nm">unassigned</div><div class="hx">#5A628C</div></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 32px">
+
+    <div>
+      <div class="h3">Buttons</div>
+      <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px">
+        <button class="bt" style="background: #D97757; color: #fff; font-size: 14px; padding: 8px 16px">開始訓練</button>
+        <button class="bt" style="background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 14px; padding: 8px 16px">分層抽樣</button>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px">
+        <button class="bt" style="background: transparent; color: #E06C75; border-color: #E06C75; font-size: 14px; padding: 8px 16px">清空指派</button>
+        <button class="bt" style="background: #D97757; color: #fff; font-size: 14px; padding: 8px 16px; opacity: .4">停用態</button>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center">
+        <button class="bt" style="background: #D97757; color: #fff; font-size: 12px; padding: 4px 12px">train</button>
+        <button class="bt" style="background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 12px; padding: 4px 12px">valid</button>
+        <button class="bt" style="background: transparent; color: #A7AEC8; border-color: #2E3768; font-size: 12px; padding: 4px 12px">test</button>
+      </div>
+
+      <div class="h3" style="margin-top: 24px">Type scale</div>
+      <div style="font-size: 34px; font-family: Menlo, ui-monospace, monospace; line-height: 1.2">34 Menlo</div>
+      <div style="font-size: 18px">18 標題</div>
+      <div style="font-size: 14px; color: #A7AEC8">14 內文</div>
+      <div style="font-size: 12px; color: #A7AEC8">12 次要</div>
+      <div style="font-size: 11px; color: #6B7399; letter-spacing: .1em; text-transform: uppercase">11 區段標籤</div>
+    </div>
+
+    <div>
+      <div class="h3">Image card — 四種 split 狀態 + 選取態</div>
+      <div style="display: flex; gap: 16px; flex-wrap: wrap">
+
+        <div class="card" style="border-color: #D97757; box-shadow: 0 0 0 3px rgba(217,119,87,.22)">
+          <div style="position: relative; height: 104px; background: #141B3D; overflow: hidden">
+            <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 108px; height: 108px; border-radius: 50%; background: #1E2761; border: 1px solid #2E3768"></div>
+            <div style="position: absolute; left: 64px; top: 40px; width: 7px; height: 7px; border-radius: 50%; background: #E06C75"></div>
+            <div style="position: absolute; left: 88px; top: 58px; width: 5px; height: 5px; border-radius: 50%; background: #E06C75"></div>
+            <div class="badge" style="background: #4FB286">train</div>
+          </div>
+          <div style="padding: 8px 12px">
+            <div style="font-size: 11px; font-family: Menlo, ui-monospace, monospace; color: #A7AEC8">wafer_0012.jpg</div>
+            <div style="display: flex; gap: 4px; margin-top: 8px">
+              <span style="font-size: 10px; padding: 1px 6px; border-radius: 99px; background: rgba(217,119,87,.13); color: #D97757; border: 1px solid rgba(217,119,87,.3)">scratch x2</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="position: relative; height: 104px; background: #141B3D; overflow: hidden">
+            <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 108px; height: 108px; border-radius: 50%; background: #1E2761; border: 1px solid #2E3768"></div>
+            <div style="position: absolute; left: 70px; top: 34px; width: 6px; height: 6px; border-radius: 50%; background: #E3B341"></div>
+            <div style="position: absolute; left: 54px; top: 62px; width: 8px; height: 8px; border-radius: 50%; background: #E3B341"></div>
+            <div class="badge" style="background: #E3B341">valid</div>
+          </div>
+          <div style="padding: 8px 12px">
+            <div style="font-size: 11px; font-family: Menlo, ui-monospace, monospace; color: #A7AEC8">wafer_0031.jpg</div>
+            <div style="display: flex; gap: 4px; margin-top: 8px">
+              <span style="font-size: 10px; padding: 1px 6px; border-radius: 99px; background: rgba(217,119,87,.13); color: #D97757; border: 1px solid rgba(217,119,87,.3)">particle x5</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="position: relative; height: 104px; background: #141B3D; overflow: hidden">
+            <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 108px; height: 108px; border-radius: 50%; background: #1E2761; border: 1px solid #2E3768"></div>
+            <div style="position: absolute; left: 92px; top: 48px; width: 7px; height: 7px; border-radius: 50%; background: #8B7BE8"></div>
+            <div class="badge" style="background: #8B7BE8">test</div>
+          </div>
+          <div style="padding: 8px 12px">
+            <div style="font-size: 11px; font-family: Menlo, ui-monospace, monospace; color: #A7AEC8">wafer_0044.jpg</div>
+            <div style="display: flex; gap: 4px; margin-top: 8px">
+              <span style="font-size: 10px; padding: 1px 6px; border-radius: 99px; background: rgba(217,119,87,.13); color: #D97757; border: 1px solid rgba(217,119,87,.3)">ring x1</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="position: relative; height: 104px; background: #141B3D; overflow: hidden">
+            <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 108px; height: 108px; border-radius: 50%; background: #1E2761; border: 1px solid #2E3768"></div>
+            <div class="badge" style="background: #5A628C">—</div>
+          </div>
+          <div style="padding: 8px 12px">
+            <div style="font-size: 11px; font-family: Menlo, ui-monospace, monospace; color: #A7AEC8">wafer_0057.jpg</div>
+            <div style="display: flex; gap: 4px; margin-top: 8px">
+              <span style="font-size: 10px; padding: 1px 6px; border-radius: 99px; background: rgba(90,98,140,.2); color: #A7AEC8; border: 1px solid #2E3768">未標註</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="h3" style="margin-top: 24px">Health states</div>
+      <div style="font-size: 11px; color: #E3B341; margin-bottom: 4px">還有 6 張沒指派，訓練前要清乾淨</div>
+      <div style="font-size: 11px; color: #E3B341; margin-bottom: 4px">valid 是 0 — 沒有驗證集你看不到 overfit</div>
+      <div style="font-size: 11px; color: #4FB286">48 張全部指派完成，可以開訓</div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!-- @dsCard group="Colors" name="Palette & split semantics" -->
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body{margin:0;padding:var(--ds-5);background:var(--ds-navy-900);color:var(--ds-ink);font-family:var(--ds-font)}
+  h3{font-size:var(--ds-t-sm);letter-spacing:.08em;text-transform:uppercase;color:var(--ds-ink-faint);margin:var(--ds-5) 0 var(--ds-3)}
+  h3:first-child{margin-top:0}
+  .row{display:flex;gap:var(--ds-3);flex-wrap:wrap}
+  .sw{width:104px}
+  .chip{height:56px;border-radius:var(--ds-r);border:1px solid var(--ds-line)}
+  .lbl{font-size:var(--ds-t-xs);margin-top:var(--ds-2);color:var(--ds-ink-dim)}
+  .hex{font-family:var(--ds-mono);font-size:var(--ds-t-xs);color:var(--ds-ink-faint)}
+</style>
+<h3>Brand</h3>
+<div class="row">
+  <div class="sw"><div class="chip" style="background:var(--ds-navy-900)"></div><div class="lbl">navy-900</div><div class="hex">#141B3D</div></div>
+  <div class="sw"><div class="chip" style="background:var(--ds-navy-800)"></div><div class="lbl">navy-800</div><div class="hex">#1E2761</div></div>
+  <div class="sw"><div class="chip" style="background:var(--ds-coral)"></div><div class="lbl">coral</div><div class="hex">#D97757</div></div>
+</div>
+<h3>Split semantics — 全 app 只認這四個</h3>
+<div class="row">
+  <div class="sw"><div class="chip" style="background:var(--ds-train)"></div><div class="lbl">train</div><div class="hex">#4FB286</div></div>
+  <div class="sw"><div class="chip" style="background:var(--ds-valid)"></div><div class="lbl">valid</div><div class="hex">#E3B341</div></div>
+  <div class="sw"><div class="chip" style="background:var(--ds-test)"></div><div class="lbl">test</div><div class="hex">#8B7BE8</div></div>
+  <div class="sw"><div class="chip" style="background:var(--ds-unassigned)"></div><div class="lbl">unassigned</div><div class="hex">#5A628C</div></div>
+</div>

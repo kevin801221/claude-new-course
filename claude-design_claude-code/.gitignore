@@ -1,0 +1,5 @@
+.env
+.DS_Store
+.design-sync/
+node_modules/
+*.log
