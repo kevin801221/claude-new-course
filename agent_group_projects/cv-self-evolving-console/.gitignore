@@ -1,0 +1,32 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.python-version
+
+# 環境變數（只留 .env.example）
+.env
+.env.local
+
+# OS
+.DS_Store
+
+# 執行期產物：事件總線與 run registry（每次跑會重生，而且刻意不在 --reload-dir 監看範圍內）
+runs/
+
+# 資料（程式生成或下載，不進 repo）
+01-raw-data/
+02-dataset/
+03-sealed-test/
+04-experiments/
+
+# 模型權重
+00-weights/
+*.pt
+*.pth
+*.onnx
+
+# log
+*.log

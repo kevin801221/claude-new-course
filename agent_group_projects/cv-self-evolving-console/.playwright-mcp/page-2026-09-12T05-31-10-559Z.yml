@@ -1,0 +1,149 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - heading [level=1] [ref=e4]:
+        - text: CV
+        - emphasis [ref=e5]: Self-Evolving
+        - text: Console
+      - generic [ref=e6]: 來源 demo · 120 張
+      - generic [ref=e7]: SSE：已關閉（run done）
+      - generic [ref=e8]: "device: mps"
+    - generic [ref=e9]:
+      - generic "s01 資料一張一張進來｜擁有者 dataset-truth｜里程碑 M1｜狀態 pending" [ref=e10]:
+        - generic [ref=e11]: s01
+        - generic [ref=e12]: 資料一張一張進來
+        - generic [ref=e13]: 進行中
+      - generic "s02 AI 自己做 labeling｜擁有者 dataset-truth｜里程碑 M2｜狀態 pending" [ref=e14]:
+        - generic [ref=e15]: s02
+        - generic [ref=e16]: AI 自己做 labeling
+        - generic [ref=e17]: 待跑
+      - generic "s03 生成 bbox｜擁有者 dataset-truth｜里程碑 M1｜狀態 pending" [ref=e18]:
+        - generic [ref=e19]: s03
+        - generic [ref=e20]: 生成 bbox
+        - generic [ref=e21]: 停・天花板不足
+      - generic "s04 落檔成 dataset｜擁有者 dataset-truth｜里程碑 M2｜狀態 pending" [ref=e22]:
+        - generic [ref=e23]: s04
+        - generic [ref=e24]: 落檔成 dataset
+        - generic [ref=e25]: 進行中
+      - generic "s05 抓模型並自己決定最好的｜擁有者 training-engineer｜里程碑 M3｜狀態 pending" [ref=e26]:
+        - generic [ref=e27]: s05
+        - generic [ref=e28]: 抓模型並自己決定最好的
+        - generic [ref=e29]: 待跑
+      - generic "s06 配方凍結與單一變因宣告｜擁有者 training-engineer｜里程碑 M3｜狀態 pending" [ref=e30]:
+        - generic [ref=e31]: s06
+        - generic [ref=e32]: 配方凍結與單一變因宣告
+        - generic [ref=e33]: 待跑
+      - generic "s07 訓練｜擁有者 training-engineer｜里程碑 M3｜狀態 pending" [ref=e34]:
+        - generic [ref=e35]: s07
+        - generic [ref=e36]: 訓練
+        - generic [ref=e37]: 待跑
+      - generic "s08 Evaluation + 圖表｜擁有者 metric-auditor｜里程碑 M4｜狀態 pending" [ref=e38]:
+        - generic [ref=e39]: s08
+        - generic [ref=e40]: Evaluation + 圖表
+        - generic [ref=e41]: 待跑
+      - generic "s09 自然語言討論｜擁有者 experiment-arbiter｜里程碑 M6｜狀態 pending" [ref=e42]:
+        - generic [ref=e43]: s09
+        - generic [ref=e44]: 自然語言討論
+        - generic [ref=e45]: 待跑
+      - generic "s10 再討論一輪 → 重 train｜擁有者 experiment-arbiter｜里程碑 M6｜狀態 pending" [ref=e46]:
+        - generic [ref=e47]: s10
+        - generic [ref=e48]: 再討論一輪 → 重 train
+        - generic [ref=e49]: 待跑
+      - generic "s11 自我進化模式｜擁有者 experiment-arbiter｜里程碑 M7｜狀態 pending" [ref=e50]:
+        - generic [ref=e51]: s11
+        - generic [ref=e52]: 自我進化模式
+        - generic [ref=e53]: 待跑
+      - generic [ref=e54]: 預算：GPU 0/0 分 · LLM 0/0 calls · USD 0.00/0.00
+      - generic [ref=e55]: "[RUN_IN_FLIGHT] 測試用的 409"
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - code [ref=e58]: RUN_IN_FLIGHT
+          - text: 測試用的 409
+        - button "×" [ref=e59] [cursor=pointer]
+    - complementary [ref=e60]:
+      - heading "資料來源" [level=3] [ref=e61]
+      - generic [ref=e62]: source
+      - combobox [ref=e63]:
+        - option "demo — 離線合成 120 張（零網路、零 key）" [selected]
+        - option "roboflow — 真實晶圓 409 張＋人工框"
+        - option "local — 未排程（會回 501）"
+      - generic [ref=e64]: preset
+      - combobox [ref=e65]:
+        - option "teaching" [selected]
+        - option "real"
+      - generic [ref=e66]: 抓幾張（1..500）
+      - spinbutton [ref=e67]: "120"
+      - generic [ref=e68]: random seed
+      - spinbutton [ref=e69]: "42"
+      - button "開始 run（s01 → s08 一條龍）" [ref=e70] [cursor=pointer]
+      - button "中止 run" [disabled] [ref=e71]
+      - generic [ref=e72]: run rS · done · ds dsS · class_table 未分類 · server seq 9
+      - heading "篩選" [level=3] [ref=e73]
+      - generic [ref=e74]: 檔名包含
+      - textbox "wafer_00" [ref=e75]
+      - generic [ref=e76]: 類別
+      - combobox [ref=e77]:
+        - option "全部" [selected]
+      - generic [ref=e78]: 目前 split
+      - combobox [ref=e79]:
+        - option "全部" [selected]
+        - option "train"
+        - option "valid"
+        - option "anchor（量天花板的那把尺）"
+        - option "sealed（封印考卷）"
+        - option "test（手動指派）"
+        - option "未指派"
+      - heading "類別分佈 · s02 class 真相表" [level=3] [ref=e80]
+      - generic [ref=e81]: s02 還沒凍結 class 表
+    - main [ref=e84]:
+      - generic [ref=e85]:
+        - button "縮圖牆 · s01/s03" [ref=e86] [cursor=pointer]
+        - button "評分圖表 · s08" [ref=e87] [cursor=pointer]
+        - button "推論圖牆 · valid" [ref=e88] [cursor=pointer]
+      - generic [ref=e90]:
+        - generic [ref=e92]:
+          - textbox "run id（例 r30）" [ref=e93]
+          - button "載入 s08 評分" [ref=e94] [cursor=pointer]
+          - generic [ref=e95]: "尚未載入。GET /eval/{run}/charts ・ /verdict ・ /predictions"
+        - generic [ref=e96]:
+          - heading "裁決" [level=4] [ref=e97]
+          - generic [ref=e98]: 尚未評分。跑完 s07 之後打 POST /api/v1/eval，或在上面填 run id 載入既有結果。
+          - generic [ref=e99]:
+            - button "進化下一輪（M6）" [disabled] [ref=e100]
+            - generic [ref=e101]: verdict 未知，先評分。
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - heading "訓練曲線（loss 與 mAP50-95 雙軸）" [level=4] [ref=e104]
+            - generic [ref=e105]: 尚無資料。
+          - generic [ref=e107]:
+            - heading "PR curve（每類一條）" [level=4] [ref=e108]
+            - generic [ref=e109]: 尚無資料。
+          - generic [ref=e111]:
+            - heading "混淆矩陣（列 = 預測，欄 = GT）" [level=4] [ref=e112]
+            - generic [ref=e113]: 作業點 conf 0.0158、IoU 0.45；每個模型的作業點都不同（實測 0.01575 vs 0.40165），不是寫死 0.25。差 0.0 格以內的變化讀不出來。
+          - generic [ref=e115]:
+            - heading "per-class AP50（含 95% CI 誤差線）" [level=4] [ref=e116]
+            - generic [ref=e117]: 尚無資料。
+    - complementary [ref=e119]:
+      - heading "標註天花板 · s03" [level=3] [ref=e120]
+      - generic [ref=e122]: 尚未量測 auto bbox 對 GT 的 IoU。
+      - heading "Split 狀態 · s04 落檔" [level=3] [ref=e123]
+      - generic [ref=e124]:
+        - generic [ref=e125]:
+          - generic [ref=e126]: —
+          - text: train
+        - generic [ref=e127]:
+          - generic [ref=e128]: —
+          - text: valid
+        - generic [ref=e129]:
+          - generic [ref=e130]: —
+          - text: sealed test
+      - generic [ref=e132]: 還沒有資料
+      - generic [ref=e133]: 分層由後端 s04 決定（GT 三分 → 分層抽樣 → 落檔 02-dataset/）。
+      - heading "訓練設定 · s05 探針選的 + s06 凍結的" [level=3] [ref=e134]
+      - generic [ref=e135]: 配方還沒凍結。模型由 s05 探針選、epochs／imgsz 由 s06 凍結，不在這裡填。
+      - button "開始訓練（一條龍自動跑 s05→s07）" [disabled] [ref=e136]
+      - generic [ref=e139]: "尚未開始。[未處理] sweep.trial [忽略] 不認識的契約版本 v=2 [忽略] eval.verdict 屬於 rB，畫面目前是 rA（要看它就在評分頁填 rB 按「載入 s08 評分」） [忽略] charts.series 屬於 rB，畫面目前是 rA（要看它就在評分頁填 rB 按「載入 s08 評分」） [忽略] eval.perclass 屬於 rB，畫面目前是 rA（要看它就在評分頁填 rB 按「載入 s08 評分」） s08 完成 → 自動切到評分圖表，載入 /charts ・ /verdict ・ valid 推論圖牆 LLM 命名降級成機械命名（RuntimeError: claude 回報錯誤）—— center 這些名字來自幾何規則，不是 LLM 這一行要出現在 ticker [TEST] 測試用 [<b>404</b>] Roboflow 說找不到（404）：<img src=\"q\" onerror=\"window.__pwned=1\"> stop → label_ceiling 停在 s03：天花板 IoU 中位數 0.2096 < 門檻 0.4 [RUN_IN_FLIGHT] 測試用的 409"
+      - heading "落檔位置" [level=3] [ref=e140]
+      - generic [ref=e141]: 跑完 s04 才有。
+  - generic [ref=e142]: "PASS 每張都被指派到剛好一個 split PASS 總數守恆（18） PASS train 約 70%（得到 13/18） PASS 分層：a 類 10 張裡 train 應 ~7（得到 7） PASS 只有 1 張的類別也有去處 PASS 同 seed → 完全相同結果 PASS 不同 seed → 結果不同 PASS 比例 100/0/0 → 全進 train PASS 比例全 0 → 丟錯而不是靜默壞掉 PASS stratifiedSplit：M1 的 120 張同 seed 兩次逐筆相同 PASS 同一批 ds.image 重放兩次，卡片數不變（3 → 3，DOM 3） PASS label.bbox 重放 → 框數不變（2，不是 4） PASS 舊 seq 的一次性事件被丟掉且 SEEN 不倒退（10 → 10） PASS pagePlan(120,200)=[0]；pagePlan(409,200)=[0,200,400] PASS 未知 type 與 v!=1 只記一行、不炸掉 reducer PASS .thumb 長寬比 1/1 == 影像 1:1（疊圖層攤滿卡槽：true） PASS label.mask 早到、ds.image 後到，遮罩資訊還在（「遮罩 · 3 分量 · 缺陷率 1.2%」） PASS fromSnapshot：annotations.classes → counts + cls，0 框時不帶 counts 洗掉事件算好的數字 PASS 推論框與影像逐像素對齊（worstDeltaPx 0.00 ≤ 1，GT 虛線框 1） PASS 四張圖都有 noise floor 灰帶（4/4），per-class 帶寬 39.64 == 39.64 且貼齊 x=0（74.00 vs 74） PASS verdict badge 三態（trusted/suspect/invalid）都渲染得出來，只有 invalid 擋住「進化下一輪」 PASS Δ 雜訊判定的邊界（0.14792 內灰掉、剛好等於也灰掉、超過才算數） PASS per-class 的 CI 誤差線是 --ds-ink-dim（量到 rgb(167, 174, 200)）、飽和點線是 --ds-valid（rgb(227, 179, 65)） PASS 別的 run（rB）的 verdict / charts / perclass 不會掛到畫面上這個 run（rA）名下 PASS SSE 路徑也讀得到作業點（EVAL.op_conf 0.01575，hint 不是「—」） PASS 四張圖最小字級 9.72 CSS px ≥ 9（最小的在 #chart-curves） PASS s08 裁決一到就去載 /charts ・ /verdict（spy 收到 [\"rD\"]） PASS heartbeat 不進 log、不動 SEEN（SEEN 0） PASS s02 的 LLM 降級在 rail 上看得見（黃色・完成・機械命名），且快照覆寫後還在 PASS 最新一行旁白同步到 rail 下面的 ticker（「這一行要出現在 ticker」） PASS 側欄 split 數字 == 快照（48 / 12 / 40，健康狀態「train 48 / valid 12 已落檔（後端 s04 指派並寫進 data.yaml）」） PASS s04 之前三個數字是「—」而不是 0（得到 —） PASS 訓練設定吃快照的 recipe（「模型 yolov8nepochs 10imgsz 320batch 8device mpstrain_id rS-t2狀態 done（22.3 秒）」） PASS 錯誤橫幅平常不佔版面、有錯才出現（hidden=true / shown=true） PASS 側欄沒有過期的里程碑標籤（一個都沒有） PASS 錯誤橫幅把 detail 當文字（注入節點 0 個、__pwned=undefined） PASS chips 的類別名當文字（注入節點 0 個、__pwned2=undefined） PASS 卡片吃得下後端的五個 split 值（train/valid/anchor/sealed；sealed 篩出 1、未指派 0；下拉缺 無） PASS stop{label_ceiling} → s03 標成「停・天花板不足」＋黃色旁白（不是紅色錯誤） PASS ds.split 一到就補抓影像快照（/api/v1/datasets/dsX/images?offset=0&limit=200） PASS POST /runs 失敗（409）之後縮圖牆還在（1 → 1 張） PASS 前端 stage 表與後端 STAGE_TABLE / drive_run 的 8 段逐欄一致 全部通過（42 條）"

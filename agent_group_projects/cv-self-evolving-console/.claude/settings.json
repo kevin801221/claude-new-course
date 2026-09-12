@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-ownership.sh",
+            "statusMessage": "🔒 檢查擁有權邊界（team-roles.md）...",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

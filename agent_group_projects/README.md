@@ -14,6 +14,7 @@
 | [`computer-vision-allblank-forblank/`](computer-vision-allblank-forblank/) | 比模板更徹底的全空白練習版(連 _Context 都讓學生自己長) | **待設計** | 從零搭整個工作區 |
 | [`new-course-material2presentation-blank/`](new-course-material2presentation-blank/README.md) | 丟主題自動產出整套課程(大綱/投影片/範例/評量/講師備忘)的課程工廠 | **空白模板** | sub-agent + skill 組生產線 |
 | [`stock-groups-skills/`](stock-groups-skills/README.md) | 4 個分析師(基本面/技術面/新聞情緒)+ 1 個彙整,平行鏡頭研究同一檔股票 | **完成版** | 平行鏡頭 + 收斂 |
+| [`cv-self-evolving-console/`](cv-self-evolving-console/README.md) | 5 位職責不重疊的專家 + 一條事件流,蓋出「AI 自己標資料→自己選模型→自己判進步→自己討論下一輪」的主控台 | **M1–M5 完成,M6–M7 未開工** | 契約先凍結 + 球員不得兼裁判 |
 
 ## 晶圓三件套怎麼分(學生最容易搞混)
 
@@ -45,6 +46,7 @@
 4. **stock-groups-skills** —— 換個型態:沒有先後階段的「平行鏡頭 + 收斂」
 5. **new-course-material2presentation-blank** —— 進階:sub-agent + skill 組成生產線
 6. **computer-vision-allblank-forblank** —— 最進階:從零設計整個工作區(待設計)
+7. **cv-self-evolving-console** —— 最進階:5 位專家先凍契約再平行開工,學「分權」怎麼防 AI 自欺
 
 ## 對應教學文件
 

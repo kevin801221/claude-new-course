@@ -1,0 +1,2109 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CV Self-Evolving Console</title>
+<style>
+/* ===== design token =====================================================
+   唯一真相：claude-design_claude-code/design-system/tokens.css（唯讀）。
+   這裡逐字內嵌，因為前端規定「單檔零依賴、無 build step」，而本檔由 uvicorn 從
+   prototype/ 送出，讀不到專案外的 CSS（.dc.html artboard 也是同樣理由硬碼同值）。
+   值不得自行更動：要改顏色去改 tokens.css 再同步回來。
+   ====================================================================== */
+:root{
+  --ds-navy-900:#141B3D; --ds-navy-800:#1E2761; --ds-navy-700:#263173;
+  --ds-coral:#D97757;    --ds-coral-700:#C2603F;
+  --ds-ink:#F2F4FB;      --ds-ink-dim:#A7AEC8; --ds-ink-faint:#6B7399; --ds-line:#2E3768;
+  --ds-train:#4FB286;    --ds-valid:#E3B341;   --ds-test:#8B7BE8;      --ds-unassigned:#5A628C;
+  --ds-ok:#4FB286;       --ds-warn:#E3B341;    --ds-err:#E06C75;
+  --ds-1:4px; --ds-2:8px; --ds-3:12px; --ds-4:16px; --ds-5:24px; --ds-6:32px;
+  --ds-r-sm:6px; --ds-r:10px; --ds-r-lg:16px;
+  --ds-font:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Segoe UI",sans-serif;
+  --ds-mono:Menlo,ui-monospace,"SF Mono",monospace;   /* Kevin 規定：code 與數字一律 Menlo */
+  --ds-t-xs:11px; --ds-t-sm:12px; --ds-t-md:14px; --ds-t-lg:18px; --ds-t-xl:24px; --ds-t-2xl:34px;
+  --ds-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ds-navy-900);color:var(--ds-ink);font-family:var(--ds-font);font-size:var(--ds-t-md)}
+button,input,select{font-family:inherit}
+.app{display:grid;grid-template-columns:270px 1fr 330px;grid-template-rows:auto auto 1fr;height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:var(--ds-4);padding:var(--ds-3) var(--ds-5);
+  background:var(--ds-navy-800);border-bottom:1px solid var(--ds-line)}
+header h1{font-size:var(--ds-t-lg);margin:0;font-weight:600}
+header h1 em{font-style:normal;color:var(--ds-coral)}
+.spacer{flex:1}
+.status{font-family:var(--ds-mono);font-size:var(--ds-t-xs);color:var(--ds-ink-faint)}
+aside{background:var(--ds-navy-800);padding:var(--ds-4);overflow-y:auto}
+aside.left{border-right:1px solid var(--ds-line)}
+aside.right{border-left:1px solid var(--ds-line)}
+h3{font-size:var(--ds-t-xs);letter-spacing:.1em;text-transform:uppercase;color:var(--ds-ink-faint);
+  margin:var(--ds-5) 0 var(--ds-3);font-weight:600}
+h3:first-child{margin-top:0}
+label{display:block;font-size:var(--ds-t-xs);color:var(--ds-ink-dim);margin-bottom:var(--ds-1)}
+input,select{width:100%;background:var(--ds-navy-900);border:1px solid var(--ds-line);color:var(--ds-ink);
+  border-radius:var(--ds-r-sm);padding:6px var(--ds-2);font-size:var(--ds-t-sm);margin-bottom:var(--ds-3)}
+input:focus,select:focus{outline:none;border-color:var(--ds-coral)}
+.btn{font-size:var(--ds-t-md);padding:var(--ds-2) var(--ds-4);border-radius:var(--ds-r-sm);
+  border:1px solid transparent;cursor:pointer;transition:.15s}
+.btn-sm{font-size:var(--ds-t-sm);padding:var(--ds-1) var(--ds-3)}
+.btn-primary{background:var(--ds-coral);color:var(--ds-ink)}
+.btn-primary:hover{background:var(--ds-coral-700)}
+.btn-ghost{background:transparent;color:var(--ds-ink-dim);border-color:var(--ds-line)}
+.btn-ghost:hover{color:var(--ds-ink);border-color:var(--ds-coral)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-block{width:100%;margin-bottom:var(--ds-2)}
+main{display:flex;flex-direction:column;overflow:hidden}
+.toolbar{display:flex;align-items:center;gap:var(--ds-2);padding:var(--ds-3) var(--ds-5);
+  border-bottom:1px solid var(--ds-line);flex-wrap:wrap}
+.toolbar .sel-count{font-family:var(--ds-mono);font-size:var(--ds-t-sm);color:var(--ds-coral);min-width:84px}
+.kbd{font-family:var(--ds-mono);font-size:10px;color:var(--ds-ink-faint);border:1px solid var(--ds-line);
+  border-radius:3px;padding:0 3px;margin-left:3px}
+.wall{flex:1;overflow-y:auto;padding:var(--ds-5);display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--ds-4);
+  align-content:start;grid-auto-rows:max-content}   /* max-content：不然 .card 的 overflow:hidden 會讓 row 被壓扁 */
+.card{background:var(--ds-navy-800);border:2px solid var(--ds-line);border-radius:var(--ds-r);
+  overflow:hidden;cursor:pointer;transition:.12s}
+.card:hover{border-color:var(--ds-navy-700);transform:translateY(-2px)}
+.card.sel{border-color:var(--ds-coral);box-shadow:0 0 0 3px rgba(217,119,87,.22)}
+.card.lowconf{border-color:var(--ds-err)}
+.card.new{animation:pop .28s ease-out}       /* 逐卡 append 時的進場，讓「一張一張進來」看得見 */
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* ⚠️ 卡槽的長寬比必須等於影像的長寬比（契約 §11：256×256）。
+   .ov 用 viewBox 0 0 100 100 + preserveAspectRatio="none" 攤滿整個卡槽，而 object-fit:cover
+   是照卡槽裁影像 —— 4/3 的槽會把 1:1 的影像上下各裁掉 12.5%，框的高度就只剩正確值的 0.75 倍。
+   兩邊只要用同一個比例，框與像素就逐像素對齊（?selftest=1 第 16 條在守這件事）。 */
+.thumb{aspect-ratio:1;position:relative;background:var(--ds-navy-900);display:block;width:100%;object-fit:cover}
+.thumb-wrap{position:relative}
+.ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}   /* bbox 疊圖層 */
+.ov rect{fill:none;stroke:var(--ds-coral);stroke-width:1.5;vector-effect:non-scaling-stroke;
+  pointer-events:auto;cursor:help}
+.ov rect:hover{stroke:var(--ds-ink)}
+.badge{position:absolute;top:var(--ds-2);left:var(--ds-2);font-size:var(--ds-t-xs);font-family:var(--ds-mono);
+  padding:2px 6px;border-radius:var(--ds-r-sm);color:var(--ds-navy-900);font-weight:700}
+.meta{padding:var(--ds-2) var(--ds-3)}
+.name{font-size:var(--ds-t-xs);font-family:var(--ds-mono);color:var(--ds-ink-dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st{font-size:10px;font-family:var(--ds-mono);color:var(--ds-ink-faint);margin-top:2px;min-height:12px}
+.chips{display:flex;gap:var(--ds-1);margin-top:var(--ds-2);flex-wrap:wrap}
+.chip{font-size:10px;padding:1px 6px;border-radius:99px;background:rgba(217,119,87,.13);
+  color:var(--ds-coral);border:1px solid rgba(217,119,87,.3)}
+.empty{grid-column:1/-1;text-align:center;color:var(--ds-ink-faint);padding:80px var(--ds-5);line-height:2}
+.stats{display:flex;gap:var(--ds-2);margin-bottom:var(--ds-3)}
+.stat{flex:1;background:var(--ds-navy-900);border:1px solid var(--ds-line);border-radius:var(--ds-r);
+  padding:var(--ds-2);text-align:center}
+.stat b{display:block;font-size:var(--ds-t-xl);font-family:var(--ds-mono);line-height:1.1}
+.stat span{font-size:10px;color:var(--ds-ink-faint);text-transform:uppercase;letter-spacing:.08em}
+.bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--ds-navy-900);margin-bottom:var(--ds-2)}
+.bar i{display:block;height:100%}
+.warn{font-size:var(--ds-t-xs);color:var(--ds-warn);margin-bottom:var(--ds-3)}
+.ok{font-size:var(--ds-t-xs);color:var(--ds-ok);margin-bottom:var(--ds-3)}
+.dist{font-size:var(--ds-t-xs);color:var(--ds-ink-dim)}
+.dist div{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--ds-line)}
+.dist b{font-family:var(--ds-mono);color:var(--ds-ink)}
+/* 全場的旁白都走這裡（每個事件的 text 欄位）。10px + --ds-ink-faint 在 --ds-navy-900 上
+   對比只有 3.62:1（低於 WCAG AA 4.5），投影機上等於沒有；--ds-ink-dim 是 7.4:1。
+   而且它在右欄底部，1440×900 時整塊在畫面外 —— 所以最新一行另外印在 .ticker（rail 下面，
+   永遠看得到），#log 留著當可捲動的全文。 */
+.log{font-family:var(--ds-mono);font-size:var(--ds-t-sm);color:var(--ds-ink-dim);background:var(--ds-navy-900);
+  border:1px solid var(--ds-line);border-radius:var(--ds-r-sm);padding:var(--ds-2);height:92px;
+  overflow-y:auto;white-space:pre-wrap;margin-top:var(--ds-2)}
+.ticker{width:100%;font-family:var(--ds-mono);font-size:var(--ds-t-sm);color:var(--ds-ink-dim);
+  padding-top:var(--ds-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-banner{background:rgba(227,179,65,.12);border:1px solid var(--ds-warn);color:var(--ds-warn);
+  border-radius:var(--ds-r-sm);padding:var(--ds-2) var(--ds-3);font-size:var(--ds-t-xs);
+  margin-bottom:var(--ds-3);font-family:var(--ds-mono)}
+.progress{height:6px;background:var(--ds-navy-900);border-radius:99px;overflow:hidden;margin-top:var(--ds-2)}
+.progress i{display:block;height:100%;background:var(--ds-coral);width:0;transition:width .2s}
+/* ---- stage 骨架（11 格，M0 就定死；每格印 id + 名稱 + 真實狀態） ---- */
+.rail{grid-column:1/-1;display:flex;gap:var(--ds-2);align-items:stretch;flex-wrap:wrap;
+  padding:var(--ds-2) var(--ds-5);background:var(--ds-navy-800);border-bottom:1px solid var(--ds-line)}
+.pill{flex:1 1 92px;min-width:92px;background:var(--ds-navy-900);border:1px solid var(--ds-line);
+  border-left:3px solid var(--ds-unassigned);border-radius:var(--ds-r-sm);padding:var(--ds-1) var(--ds-2)}
+.pill b{display:block;font-family:var(--ds-mono);font-size:var(--ds-t-xs);color:var(--ds-ink-dim)}
+.pill span{display:block;font-size:10px;color:var(--ds-ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill i{display:block;font-style:normal;font-family:var(--ds-mono);font-size:9px;color:var(--ds-ink-faint)}
+.pill.running i{color:var(--ds-coral)}
+.pill.done i{color:var(--ds-ok)}
+.pill.failed i{color:var(--ds-err)}
+.pill.pending{border-left-color:var(--ds-ink-faint)}
+.pill.running{border-left-color:var(--ds-coral);background:var(--ds-navy-700)}
+.pill.running b{color:var(--ds-coral)}
+.pill.done{border-left-color:var(--ds-ok)}
+.pill.done b{color:var(--ds-ok)}
+.pill.failed{border-left-color:var(--ds-err)}
+.pill.failed b{color:var(--ds-err)}
+.pill.skipped,.pill.todo{opacity:.42}            /* 這一輪不跑的：灰底、不假裝在跑 */
+.pill.reused,.pill.awaiting_go{border-left-color:var(--ds-valid)}
+.budget{width:100%;font-family:var(--ds-mono);font-size:10px;color:var(--ds-ink-faint);padding-top:var(--ds-1)}
+/* 錯誤要台下讀得到：左欄 11px 的小字在投影機上等於沒有，而「沒有 ROBOFLOW_API_KEY」
+   正是最需要被讀懂的一種錯（照著做就能修好）。橫幅掛在 rail 裡（rail 本來就是整列寬），
+   14px、紅左邊條、可關掉。#err 留給黃色的降級提示（那不是錯，別搶同一個位置）。 */
+.alert{width:100%;display:flex;gap:var(--ds-3);align-items:flex-start;margin-top:var(--ds-2);
+  background:rgba(224,108,117,.16);border:1px solid var(--ds-err);border-left:4px solid var(--ds-err);
+  border-radius:var(--ds-r-sm);padding:var(--ds-2) var(--ds-3);color:var(--ds-ink);font-size:var(--ds-t-md);
+  line-height:1.55}
+.alert code{font-family:var(--ds-mono);font-size:var(--ds-t-sm);color:var(--ds-err);
+  background:rgba(0,0,0,.25);border-radius:4px;padding:1px 5px}
+.alert .x{margin-left:auto;flex:none;background:none;border:0;color:var(--ds-ink-dim);cursor:pointer;
+  font-size:var(--ds-t-lg);line-height:1;padding:0 var(--ds-1)}
+/* class 選擇器的 display:flex 贏過瀏覽器預設的 [hidden]{display:none}（特異性 0,1,0 > 0,0,1）——
+   沒有這一行，沒有錯誤的時候畫面上會常駐一條空的紅框（實測截圖抓到的）。 */
+.alert[hidden]{display:none}
+.hist{width:100%;height:38px;display:block;background:var(--ds-navy-900);border:1px solid var(--ds-line);
+  border-radius:var(--ds-r-sm)}
+.mono{font-family:var(--ds-mono);font-size:var(--ds-t-xs);color:var(--ds-ink-dim);line-height:1.6;word-break:break-all}
+#tip{position:fixed;z-index:9;background:var(--ds-navy-700);border:1px solid var(--ds-coral);
+  border-radius:var(--ds-r-sm);padding:var(--ds-2) var(--ds-3);font-family:var(--ds-mono);
+  font-size:var(--ds-t-xs);color:var(--ds-ink);max-width:300px;box-shadow:var(--ds-shadow)}
+#selftest{padding:var(--ds-5);font-family:var(--ds-mono);font-size:var(--ds-t-sm);white-space:pre-wrap}
+/* ===== M4 · s08 評分（verdict badge / 四張 inline SVG / 推論圖牆） ==================
+   一個新 hex 都沒有：顏色全部取既有 --ds-* token，數字與 code 一律 Menlo。       */
+.vbadge{font-family:var(--ds-mono);font-size:var(--ds-t-xs);font-weight:700;padding:3px 10px;
+  border-radius:99px;border:0;cursor:pointer;color:var(--ds-navy-900)}
+.vbadge.trusted{background:var(--ds-ok)}
+.vbadge.suspect{background:var(--ds-warn)}
+.vbadge.invalid{background:var(--ds-err)}
+.vbadge.final{background:var(--ds-test)}
+.vpanel{position:fixed;z-index:8;top:50px;left:var(--ds-4);width:min(520px,calc(100vw - 32px));
+  background:var(--ds-navy-800);border:1px solid var(--ds-line);border-radius:var(--ds-r);
+  box-shadow:var(--ds-shadow);padding:var(--ds-3)}
+.chk{display:flex;gap:var(--ds-2);padding:var(--ds-2) 0;border-bottom:1px solid var(--ds-line);
+  font-size:var(--ds-t-xs)}
+.chk:last-child{border-bottom:0}
+.chk>b{font-family:var(--ds-mono);flex:0 0 104px}
+.chk .pass{color:var(--ds-ok)}
+.chk .fail{color:var(--ds-err)}
+.chk>span{color:var(--ds-ink-dim);line-height:1.6;word-break:break-word}
+.tabs{display:flex;gap:var(--ds-2);padding:var(--ds-2) var(--ds-5) 0;background:var(--ds-navy-800);
+  border-bottom:1px solid var(--ds-line);flex-wrap:wrap}
+.tab{font-size:var(--ds-t-sm);padding:var(--ds-2) var(--ds-3);border:1px solid var(--ds-line);
+  border-bottom:0;border-radius:var(--ds-r-sm) var(--ds-r-sm) 0 0;background:var(--ds-navy-900);
+  color:var(--ds-ink-dim);cursor:pointer}
+.tab.on{color:var(--ds-coral);border-color:var(--ds-coral)}
+.view{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.view[hidden]{display:none}
+.scroll{flex:1;overflow-y:auto;padding:var(--ds-5)}
+.panel{background:var(--ds-navy-800);border:1px solid var(--ds-line);border-radius:var(--ds-r);
+  padding:var(--ds-3);margin-bottom:var(--ds-4)}
+.panel h4{margin:0 0 var(--ds-1);font-size:var(--ds-t-sm);font-weight:600}
+.panel .hint{font-size:var(--ds-t-xs);color:var(--ds-ink-faint);line-height:1.6;margin-bottom:var(--ds-2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:var(--ds-4)}
+.chart{width:100%;height:auto;display:block}
+.chart text{font-family:var(--ds-mono);fill:var(--ds-ink-faint)}
+.chart .axis{stroke:var(--ds-line);stroke-width:1;vector-effect:non-scaling-stroke;fill:none}
+/* .rule = 自己帶 stroke 的線（CI 誤差線、飽和點垂直線）。不能用 .axis：CSS 規則的優先級
+   高於 SVG presentation attribute，會把元素自己寫的 stroke 全部蓋成 --ds-line，
+   畫在 --ds-navy-800 上對比只有 1.23:1 —— 肉眼等於沒畫（?selftest=1 第 23 條守這件事）。*/
+.chart .rule{stroke-width:1;vector-effect:non-scaling-stroke;fill:none}
+.chart .ln{fill:none;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.nf-band{fill:var(--ds-ink-faint);opacity:.17}   /* noise floor 灰帶：四張圖各一條 */
+.noise{color:var(--ds-ink-faint)}                /* 落在雜訊帶內的數字直接灰掉 */
+.legend{display:flex;flex-wrap:wrap;gap:var(--ds-2) var(--ds-3);font-size:var(--ds-t-xs);
+  font-family:var(--ds-mono);color:var(--ds-ink-dim);margin-top:var(--ds-2)}
+.legend i{display:inline-block;width:12px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+.kv{font-family:var(--ds-mono);font-size:var(--ds-t-xs);color:var(--ds-ink-dim);line-height:1.8}
+.kv b{color:var(--ds-ink)}
+.row-load{display:flex;gap:var(--ds-2);align-items:center;flex-wrap:wrap}
+.row-load input{width:150px;margin:0}
+.pwall{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--ds-4)}
+.ov rect.gt{stroke:var(--ds-train);stroke-dasharray:3 2}    /* GT：綠色虛線 */
+.ov rect.faint{opacity:.22}                                  /* 作業點以下的預測框 */
+@media (max-width:1100px){.app{grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto;height:auto}
+  aside{border:0;border-bottom:1px solid var(--ds-line)}.wall{max-height:60vh}
+  .view{overflow:visible}.scroll{max-height:70vh}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <h1>CV <em>Self-Evolving</em> Console</h1>
+    <!-- verdict badge：畫面最上方一枚，點開列出四項 check（DESIGN s08） -->
+    <button class="vbadge" id="vbadge" hidden title="點開看四項 check">—</button>
+    <span class="status" id="src">尚未開始</span>
+    <span class="spacer"></span>
+    <span class="status" id="conn">SSE：未連線</span>
+    <span class="status">device: <b id="dev">mps</b></span>
+  </header>
+
+  <div class="rail" id="rail">
+    <div class="budget" id="budget">預算：GPU 0/0 分 · LLM 0/0 calls · USD 0.00/0.00</div>
+    <!-- 最新一行旁白：#log 在右欄底部（1440×900 時在畫面外），台上要看的是這一條 -->
+    <div class="ticker" id="ticker">尚未開始。</div>
+    <div class="alert" id="alert" hidden></div>
+  </div>
+
+  <aside class="left">
+    <h3>資料來源</h3>
+    <div id="err"></div>
+    <label>source</label>
+    <select id="source">
+      <option value="demo">demo — 離線合成 120 張（零網路、零 key）</option>
+      <option value="roboflow">roboflow — 真實晶圓 409 張＋人工框</option>
+      <option value="local">local — 未排程（會回 501）</option>
+    </select>
+    <!-- 選 roboflow 才出現。**沒有 API key 欄位是刻意的**：key 只在 server 讀 .env，
+         前端持 key 等於每個開得到這個畫面的人都拿得到它。 -->
+    <div id="rf" hidden>
+      <label>workspace</label><input id="rf-ws" value="wm811k-paasr">
+      <label>project</label><input id="rf-pj" value="wm811k">
+      <label>version</label><input id="rf-ver" type="number" value="3" min="1">
+      <div class="mono">API key 不在這裡：server 讀 <b>.env</b> 的 <b>ROBOFLOW_API_KEY</b>。<br>
+        第一次抓約 8.8 MB／4 秒，之後沿用 <b>01-raw-data/roboflow/</b> 不重抓、也不需要 key。</div>
+    </div>
+    <label>preset</label>
+    <select id="preset"><option value="teaching">teaching</option><option value="real">real</option></select>
+    <label>抓幾張（1..500）</label><input id="limit" type="number" value="120" min="1" max="500">
+    <label>random seed</label><input id="run-seed" type="number" value="42">
+    <button class="btn btn-primary btn-block" id="run">開始 run（s01 → s08 一條龍）</button>
+    <button class="btn btn-ghost btn-block" id="cancel" disabled>中止 run</button>
+    <div class="mono" id="runinfo">尚未開 run。API key 已搬到 server env，前端不再持 key。</div>
+
+    <h3>篩選</h3>
+    <label>檔名包含</label><input id="q" placeholder="wafer_00">
+    <label>類別</label><select id="fcls"><option value="">全部</option></select>
+    <label>目前 split</label>
+    <select id="fsplit">
+      <option value="">全部</option><option value="train">train</option>
+      <option value="valid">valid</option>
+      <option value="anchor">anchor（量天花板的那把尺）</option>
+      <option value="sealed">sealed（封印考卷）</option>
+      <option value="test">test（手動指派）</option>
+      <option value="unassigned">未指派</option>
+    </select>
+
+    <h3>類別分佈 · s02 class 真相表</h3>
+    <div class="dist" id="dist"><div><span>s02 還沒凍結 class 表</span></div></div>
+  </aside>
+
+  <main>
+    <div class="tabs">
+      <button class="tab on" data-view="data">縮圖牆 · s01/s03</button>
+      <button class="tab" data-view="eval">評分圖表 · s08</button>
+      <button class="tab" data-view="pred">推論圖牆 · valid</button>
+    </div>
+
+    <div class="view" id="view-data">
+    <div class="toolbar">
+      <span class="sel-count" id="selcount">已選 0 張</span>
+      <button class="btn btn-sm btn-ghost" id="all">全選可見</button>
+      <button class="btn btn-sm btn-ghost" id="none">取消選取</button>
+      <span style="width:var(--ds-4)"></span>
+      <button class="btn btn-sm btn-primary" data-assign="train">指派 train<span class="kbd">1</span></button>
+      <button class="btn btn-sm btn-primary" data-assign="valid">指派 valid<span class="kbd">2</span></button>
+      <button class="btn btn-sm btn-primary" data-assign="test">指派 test<span class="kbd">3</span></button>
+      <button class="btn btn-sm btn-ghost" data-assign="">清除<span class="kbd">0</span></button>
+      <span class="spacer"></span>
+      <span class="status" id="shown">0 / 0</span>
+    </div>
+    <div class="wall" id="wall">
+      <div class="empty" id="empty">先起後端：<b>uv run uvicorn src.app.main:app --reload --reload-dir src</b><br>
+        再按左邊「開始 run」——縮圖牆會一張一張長出來，每張即時疊出 bbox；<br>
+        s01 → s08 一路跑完，評分圖表與推論圖牆會自己跳出來</div>
+    </div>
+    </div><!-- /view-data -->
+
+    <!-- ===== M4 · s08 評分圖表：四張圖全部 inline SVG 自畫，零圖表庫 ===== -->
+    <div class="view" id="view-eval" hidden>
+      <div class="scroll">
+        <div class="panel">
+          <div class="row-load">
+            <input id="eval-run" placeholder="run id（例 r30）">
+            <button class="btn btn-sm btn-primary" id="load-eval">載入 s08 評分</button>
+            <span class="kv" id="eval-src">尚未載入。GET /eval/{run}/charts ・ /verdict ・ /predictions</span>
+          </div>
+        </div>
+
+        <div class="panel" id="verdict-card">
+          <h4>裁決</h4>
+          <div class="kv" id="verdict-num">尚未評分。跑完 s07 之後打 POST /api/v1/eval，或在上面填 run id 載入既有結果。</div>
+          <div style="margin-top:var(--ds-3);display:flex;gap:var(--ds-2);align-items:center;flex-wrap:wrap">
+            <button class="btn btn-sm btn-ghost" id="evolve" disabled
+                    title="s09/s10 於 M6 實作">進化下一輪（M6）</button>
+            <span class="kv" id="evolve-why">verdict 未知，先評分。</span>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="panel">
+            <h4>訓練曲線（loss 與 mAP50-95 雙軸）</h4>
+            <div class="hint" id="hint-curves">—</div>
+            <svg class="chart" id="chart-curves"></svg>
+            <div class="legend" id="lg-curves"></div>
+          </div>
+          <div class="panel">
+            <h4>PR curve（每類一條）</h4>
+            <div class="hint" id="hint-pr">—</div>
+            <svg class="chart" id="chart-pr"></svg>
+            <div class="legend" id="lg-pr"></div>
+          </div>
+          <div class="panel">
+            <h4>混淆矩陣（列 = 預測，欄 = GT）</h4>
+            <div class="hint" id="hint-cm">—</div>
+            <svg class="chart" id="chart-cm"></svg>
+          </div>
+          <div class="panel">
+            <h4>per-class AP50（含 95% CI 誤差線）</h4>
+            <div class="hint" id="hint-pc">—</div>
+            <svg class="chart" id="chart-perclass"></svg>
+            <div class="legend" id="lg-pc"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== M4 · 推論圖牆：valid split，預測框 coral + GT 綠虛線 ===== -->
+    <div class="view" id="view-pred" hidden>
+      <div class="scroll">
+        <div class="panel">
+          <div class="row-load">
+            <label style="margin:0"><input type="checkbox" id="show-all-boxes" style="width:auto;margin:0">
+              顯示作業點以下的框</label>
+            <span class="kv" id="pstat">尚未載入預測。這面牆只吃 <b>valid</b> split，sealed-test 不會出現在這裡。</span>
+          </div>
+        </div>
+        <div class="pwall" id="pwall"></div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="right">
+    <h3>標註天花板 · s03</h3>
+    <svg class="hist" id="iou-hist" viewBox="0 0 100 38" preserveAspectRatio="none"></svg>
+    <div class="mono" id="iou-txt" style="margin-top:var(--ds-2)">尚未量測 auto bbox 對 GT 的 IoU。</div>
+
+    <!-- 三個數字與下面那行健康狀態**一律由 GET /runs/{id} 的 split 欄位驅動**，前端不自算。
+         前端自算的版本說過謊：事件裡的 ds.image.split 永遠是 null（s04 指派時不補發），
+         所以一條龍訓練完、verdict TRUSTED，這裡照樣寫「0/0/0・還有 120 張沒指派」。 -->
+    <h3>Split 狀態 · s04 落檔</h3>
+    <div class="stats">
+      <div class="stat"><b id="n-train" style="color:var(--ds-train)">—</b><span>train</span></div>
+      <div class="stat"><b id="n-valid" style="color:var(--ds-valid)">—</b><span>valid</span></div>
+      <div class="stat"><b id="n-test"  style="color:var(--ds-test)">—</b><span>sealed test</span></div>
+    </div>
+    <div class="bar" id="bar"></div>
+    <div id="health" class="warn">還沒有資料</div>
+    <div class="kv" id="split-src">分層由後端 s04 決定（GT 三分 → 分層抽樣 → 落檔 02-dataset/）。</div>
+
+    <!-- 這一輪**真的跑的**配方：模型是 s05 探針選的、epochs/imgsz 是 s06 凍結的。
+         原本這裡是四個可編輯的欄位寫著 yolov8n / 50 / 640 —— 沒有人用過那組數字。 -->
+    <h3>訓練設定 · s05 探針選的 + s06 凍結的</h3>
+    <div class="kv" id="recipe">配方還沒凍結。模型由 s05 探針選、epochs／imgsz 由 s06 凍結，不在這裡填。</div>
+    <button class="btn btn-primary btn-block" id="train" disabled
+      title="訓練由那顆按鈕的一條龍自動跑（s05 探針 → s06 凍結配方 → s07 訓練）；要單獨重跑走 POST /api/v1/train">開始訓練（一條龍自動跑 s05→s07）</button>
+    <div class="progress"><i id="pbar"></i></div>
+    <div class="log" id="log">尚未開始。</div>
+
+    <h3>落檔位置</h3>
+    <div class="kv" id="artifacts">跑完 s04 才有。</div>
+  </aside>
+</div>
+<div id="tip" hidden></div>
+<div class="vpanel" id="vpanel" hidden></div>
+<pre id="selftest" hidden></pre>
+
+<script>
+// =====================================================================
+// CV 自我進化主控台 · 前端（M1 + M4 · s08 評分）
+// 契約：_Context/api-contract.md v=1。事件信封 §2、重連 §5、冪等 §6、游標 §7。
+// 紀律：單檔零依賴、無 build step、顏色只取 --ds-* token、圖表 inline SVG 自畫。
+// =====================================================================
+
+// ---------- state ----------
+let IMAGES = [];                 // {id,name,url,cls[],counts,split,lowconf?}
+const IDX    = new Map();        // id -> IMAGES 的索引（upsert 用，契約 §6）
+const CARDS  = new Map();        // id -> DOM 卡片（append 用，不整面重繪）
+const BOXES  = new Map();        // image_id -> boxes[]（label.bbox 整包取代）
+const MASKS  = new Map();        // image_id -> {n_components,defect_ratio}（同上：獨立於卡片
+                                 // 存在，label.* 比 ds.image 早到時才不會整包被丟掉）
+let SELECTED = new Set();
+let lastIdx  = null;
+
+let RUN = null, DS = null, STATUS = null;
+let SEEN = 0;                    // 已處理的最大 seq；斷線就靠它帶 ?since=
+let PROG = {loaded:0, total:0};
+let ES = null, POLL = null, WATCH = null, LAST_MSG = 0;
+
+const $ = s => document.querySelector(s);
+const API = '';                  // 同源：本檔由 uvicorn 從 / 送出，所以不用 CORS 也不用寫 host
+
+// stage 骨架：11 格在 M0 就定死，前端只寫一次版面（契約 §3）
+// ⚠️ 名稱與擁有者必須與後端 registry.STAGE_TABLE 逐字相同（?selftest=1 最後一條打
+// GET /api/v1/stages 比對）。這張表只是後端還沒回來時的 fallback，不是第二份真相。
+const STAGES = [
+  ['s01','資料一張一張進來','dataset-truth','M1'],
+  ['s02','AI 自己做 labeling','dataset-truth','M2'],
+  ['s03','生成 bbox','dataset-truth','M1'],
+  ['s04','落檔成 dataset','dataset-truth','M2'],
+  ['s05','抓模型並自己決定最好的','training-engineer','M3'],
+  ['s06','配方凍結與單一變因宣告','training-engineer','M3'],
+  ['s07','訓練','training-engineer','M3'],
+  ['s08','Evaluation + 圖表','metric-auditor','M4'],
+  ['s09','自然語言討論','experiment-arbiter','M6'],
+  ['s10','再討論一輪 → 重 train','experiment-arbiter','M6'],
+  ['s11','自我進化模式','experiment-arbiter','M7'],
+];
+// stage 狀態 → 畫面上的一行字（契約 §3 的 enum，一個都不能少）
+const STAGE_ZH = {pending:'待跑', running:'進行中', done:'完成', failed:'失敗',
+                  skipped:'略過', reused:'沿用上輪', awaiting_go:'等 GO'};
+// bbox 規則 → 一行人話（點框會彈這個）。enum 由 dataset-truth 在 M2 擴充，這裡留 fallback。
+const RULES = { cc_bbox:'連通分量外接框（cc_bbox）' };   // M2 擴 enum 時加一行人話，沒加也只是印原始值
+// 契約 §6：這些 type 有主鍵，重放要 upsert；其餘一次性事件靠 seq 去重。
+const KEYED = new Set(['ds.image','label.bbox','label.mask','label.lowconf','ds.progress','train.epoch',
+                       'eval.perclass']);
+// 那顆按鈕的一條龍會跑到的格子（s01→s08）。s09–s11 照契約回 skipped，畫灰的、不假裝在跑。
+// （狀態的權威仍是快照；這張表只在後端還沒回來時當 fallback。）
+const LIVE = new Set(['s01','s02','s03','s04','s05','s06','s07','s08']);
+
+// ---------- 分層抽樣（唯一非 trivial 的邏輯，下面有 selftest） ----------
+// ⚠️ scripts/selfcheck.py 的 assert 2 會逐筆比對這一段，改這裡就要同步改 Python。
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+function stratifiedSplit(items, ratios, seed){
+  // items: [{id, cls:[...]}]、ratios: {train,valid,test}（可不等於 1，會自動正規化）
+  const total = ratios.train + ratios.valid + ratios.test;
+  if (total <= 0) throw new Error('比例不能全為 0');
+  const p = {train:ratios.train/total, valid:ratios.valid/total, test:ratios.test/total};
+  const rnd = mulberry32(seed >>> 0);
+  const groups = new Map();
+  for (const it of items){
+    const k = (it.cls && it.cls.length) ? it.cls[0] : '__none__';   // 用主類別分層
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(it);
+  }
+  const out = {};
+  for (const [, g] of [...groups].sort((a,b)=>a[0]<b[0]?-1:1)){     // 排序 → 同 seed 同結果
+    const arr = g.slice();
+    for (let i=arr.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}
+    // 最大餘數法：確保三份加起來剛好等於這一組的張數，不會少一張或多一張
+    const raw = {train:arr.length*p.train, valid:arr.length*p.valid, test:arr.length*p.test};
+    const n = {train:Math.floor(raw.train), valid:Math.floor(raw.valid), test:Math.floor(raw.test)};
+    let left = arr.length - n.train - n.valid - n.test;
+    const order = ['train','valid','test'].sort((a,b)=>(raw[b]-n[b])-(raw[a]-n[a]));
+    for (let i=0;i<left;i++) n[order[i % 3]]++;
+    let c = 0;
+    for (const s of ['train','valid','test']) for (let i=0;i<n[s];i++) out[arr[c++].id] = s;
+  }
+  return out;
+}
+
+// ---------- log（渲染器沿用舊前端，一行未改：事件的 text 欄位直接印） ----------
+function logLine(s){
+  const l=$('#log'); l.textContent += s+'\n'; l.scrollTop = l.scrollHeight;
+  $('#ticker').textContent = s;            // 最新一行同步到 rail 下面那條（#log 看不到）
+}
+// 非錯誤的提示（降級、封印、預算…）：黃色，不是紅色 —— 紅色代表這一輪壞了。
+function showNote(text){
+  const el = document.createElement('div');
+  el.className = 'note-banner'; el.textContent = text;
+  $('#err').appendChild(el);
+  logLine(text);
+}
+
+// 錯誤走 rail 底下那條整列寬的橫幅（14px），不是左欄 11px 的小字 ——
+// 「沒有 ROBOFLOW_API_KEY」這種錯的全部價值就在於**被讀懂**，後端已經把「去哪拿、填哪個檔」
+// 寫進 detail 了，前端只負責讓它大到台下看得見（不再拼第二份說明，兩份一定會走鐘）。
+function showErr(o){
+  const code = o.code || 'ERROR', detail = o.detail || o.message || '未知錯誤';
+  const el = $('#alert');
+  // ⛔ 一律 esc()：`detail` 有兩個第三方來源 ——（a）使用者自己填的 workspace 被後端原封回顯
+  // （roboflow_src 的 404 訊息帶 url 的路徑段），（b）第三方回應 body 的前 400 bytes
+  // （教室 captive portal 會回一整頁 HTML）。這個頁面同源且 Host 是 127.0.0.1，過得了
+  // main.py 的 local_only 檢查，注進來的 JS 可以直接 POST /api/v1/runs 燒 GPU 與 token。
+  el.innerHTML = `<div><code>${esc(code)}</code> ${esc(detail)}</div>`
+    + `<button class="x" title="關掉">×</button>`;
+  el.querySelector('.x').onclick = clearErr;
+  el.hidden = false;
+  logLine(`[${code}] ${detail}`);
+}
+function clearErr(){ $('#err').innerHTML=''; $('#alert').hidden = true; $('#alert').innerHTML=''; }
+
+// ---------- stage 骨架 ----------
+function drawRail(stages){
+  // budget 與 ticker 要先抓起來：它們住在 rail 裡，innerHTML='' 之後就不存在了
+  const rail = $('#rail'), budget = $('#budget'), ticker = $('#ticker'), alert = $('#alert');
+  rail.innerHTML = '';
+  const byId = new Map((stages||[]).map(s=>[s.id, s]));
+  for (const [id,name,owner,ms] of STAGES){
+    const s = byId.get(id) || {};
+    const el = document.createElement('div');
+    el.className = 'pill ' + (s.status || (LIVE.has(id) ? 'pending' : 'todo'));
+    el.id = 'pill-'+id;
+    // 名稱與擁有者以後端送來的為準（契約特地讓 stages[] 帶 name/owner，就是為了只有一份真相）；
+    // 本地那張表只當後端還沒回來時的 fallback。第三行印的是**狀態**（pending/running/done/
+    // skipped…），不是里程碑 —— 之前這裡寫死「未實作（M2+）」，s02/s04–s08 明明都跑得動，
+    // 畫面卻叫學生別等，那是最糟的一種謊：它讓人以為後端沒做。
+    const st = s.status || (LIVE.has(id) ? 'pending' : 'skipped');
+    el.title = `${id} ${s.name||name}｜擁有者 ${s.owner||owner}｜里程碑 ${ms}｜狀態 ${st}`;
+    el.innerHTML = `<b>${id}</b><span>${s.name||name}</span><i>${STAGE_ZH[st]||st}</i>`;
+    rail.appendChild(el);
+  }
+  rail.appendChild(budget);
+  rail.appendChild(ticker);
+  rail.appendChild(alert);      // 少了這行，drawRail 之後的錯誤就沒有地方可以顯示
+}
+// stage id → 降級標記。後端只知道這一段「done」，但 done 有兩種：真的做了，
+// 以及降級之後做完（s02 的 LLM 命名失敗 → 機械命名）。快照每 3 秒會把 pill 覆寫回 done，
+// 所以標記要記在這裡、每次 setStage 重貼一次，不能只在收到事件那一刻改一次 DOM。
+const DEGRADED = new Map();
+function setStage(id, status){
+  const el = $('#pill-'+id); if (!el) return;
+  const st = status || (LIVE.has(id) ? 'pending' : 'skipped');
+  const note = st === 'done' ? DEGRADED.get(id) : null;
+  el.className = 'pill ' + (note ? 'reused' : st);
+  const tag = el.querySelector('i'); if (tag) tag.textContent = note || STAGE_ZH[st] || st;
+}
+function setStages(map){ for (const k in map) setStage(k, map[k]); }
+function setBudget(b){
+  if (!b) return;
+  $('#budget').textContent = `預算：GPU ${b.gpu_min_used??0}/${b.gpu_min_cap??0} 分 · `
+    + `LLM ${b.llm_calls??0}/${b.llm_calls_cap??0} calls · `
+    + `USD ${(b.cost_usd??0).toFixed(2)}/${(b.usd_cap??0).toFixed(2)}`;
+}
+
+// ---------- 縮圖牆：upsert + append 單卡（不再整面 innerHTML 重繪） ----------
+// 契約 §8.7 的 split 值域：後端 `GET /datasets/{ds}/images` 只回得出這五個值之一
+// （`anchor` / `sealed` 來自 dataset.py 的 `_row()`，`null` = s04 還沒指派）。
+// ⛔ 白名單原本是 `['train','valid','test']`：`anchor` 與 `sealed` 兩個都吃不下、一律變 null，
+// 於是側欄誠實寫著 231/58/80，同一頁的卡片卻全部標「—」、`#fsplit=unassigned` 篩出 120/409、
+// `#fsplit=test` 篩出 0 —— 等於把「還有 N 張沒指派」那個謊從側欄搬到卡片層。
+// `test` 留著是給 s04 之前的手動指派鈕用的（後端不會回這個值）。
+const CARD_SPLITS = ['train','valid','anchor','sealed','test'];
+const CARD_COLOR = {train:'--ds-train', valid:'--ds-valid', anchor:'--ds-coral',
+                    sealed:'--ds-test', test:'--ds-test'};
+function matches(im){
+  const q=$('#q').value.trim().toLowerCase(), fc=$('#fcls').value, fs=$('#fsplit').value;
+  return (!q || im.name.toLowerCase().includes(q))
+      && (!fc || im.cls.includes(fc))
+      && (!fs || (fs==='unassigned' ? !im.split : im.split===fs));
+}
+function visible(){ return IMAGES.filter(matches); }
+
+function makeCard(im){
+  const el = document.createElement('div');
+  el.className = 'card new';
+  el.innerHTML = `<div class="thumb-wrap">
+      <img class="thumb" loading="lazy" alt=""
+           onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))">
+      <svg class="ov" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+      <span class="badge">—</span></div>
+    <div class="meta"><div class="name"></div><div class="st"></div><div class="chips"></div></div>`;
+  el.onclick = e => { const vis = visible(); toggle(im.id, vis.indexOf(im), vis, e.shiftKey); };
+  return el;
+}
+function drawBoxes(el, im){
+  const svg = el.querySelector('.ov'), boxes = BOXES.get(im.id) || [];
+  // 整包取代（契約 §6）：append 會在同一張圖上疊兩層框，IoU 還會看起來變好，是最惡毒的那種 bug
+  svg.innerHTML = boxes.map((b,i)=>{
+    const x=((b.cx-b.w/2)*100).toFixed(2), y=((b.cy-b.h/2)*100).toFixed(2);
+    return `<rect x="${x}" y="${y}" width="${(b.w*100).toFixed(2)}" height="${(b.h*100).toFixed(2)}"`
+         + ` data-img="${im.id}" data-i="${i}"></rect>`;
+  }).join('');
+}
+function updateCard(el, im){
+  const img = el.querySelector('.thumb');
+  if (img && im.url && img.getAttribute('src') !== im.url){ img.src = im.url; img.alt = im.name; }
+  const nm = el.querySelector('.name'); nm.textContent = im.name; nm.title = im.name;
+  const b = el.querySelector('.badge');
+  b.textContent = im.split || '—';
+  b.style.background = `var(${CARD_COLOR[im.split] || '--ds-unassigned'})`;
+  const mk = MASKS.get(im.id);
+  el.querySelector('.st').textContent = mk
+    ? `遮罩 · ${mk.n_components} 分量 · 缺陷率 ${(mk.defect_ratio*100).toFixed(1)}%` : '';
+  el.querySelector('.chips').innerHTML =
+    // 類別名不是我們寫的：roboflow 那條路它來自第三方 data.yaml 的 `names:`
+    Object.entries(im.counts||{}).map(([c,n])=>`<span class="chip">${esc(c)} ×${n}</span>`).join('')
+    || '<span class="chip">未標註</span>';
+  el.classList.toggle('sel', SELECTED.has(im.id));
+  el.classList.toggle('lowconf', !!im.lowconf);
+  drawBoxes(el, im);
+}
+function syncCard(im){                    // 有就更新、沒有就 append 一張（逐張串流不抖動）
+  let el = CARDS.get(im.id);
+  if (!el){ el = makeCard(im); CARDS.set(im.id, el); $('#wall').appendChild(el); }
+  updateCard(el, im);
+  el.hidden = !matches(im);               // 篩選用隱藏，不用重繪
+  return el;
+}
+function render(){                        // 只有篩選/指派這種使用者動作才全掃一次
+  $('#empty').hidden = IMAGES.length > 0;
+  IMAGES.forEach(syncCard);
+  renderStats();
+}
+
+function upsertImage(d){                  // 契約 §6：ds.image 依 data.id upsert，不是 push
+  let im = IMAGES[IDX.get(d.id)];
+  if (!im){
+    im = {id:d.id, name:d.name||d.id, url:d.url||'', cls:d.cls||[], counts:d.counts||{},
+          split:CARD_SPLITS.includes(d.split)?d.split:null};
+    IDX.set(d.id, IMAGES.length); IMAGES.push(im);
+  } else {
+    im.name = d.name||im.name; im.url = d.url||im.url;
+    if (d.cls) im.cls = d.cls;
+    if (d.counts) im.counts = d.counts;
+    im.split = CARD_SPLITS.includes(d.split) ? d.split : im.split;
+  }
+  syncCard(im);
+  return im;
+}
+
+function toggle(id, idx, vis, range){
+  if (range && lastIdx!==null && idx>=0){
+    const [a,b] = idx<lastIdx ? [idx,lastIdx] : [lastIdx,idx];
+    for (let i=a;i<=b;i++) SELECTED.add(vis[i].id);
+  } else {
+    SELECTED.has(id) ? SELECTED.delete(id) : SELECTED.add(id);
+    lastIdx = idx;
+  }
+  render();
+}
+
+// ---------- 側欄三塊：split / class 表 / 訓練配方，一律吃後端，前端一個數字都不自己算 ----------
+// ⛔ 實測抓到的謊：這三塊以前是前端自算的，而前端手上根本沒有真相 ——
+//    `ds.image.split` 在事件裡永遠是 null（s04 指派時不補發 120 筆），`cls[]` 在 auto 那條路
+//    永遠是空的（s01 填類別就是偷看答案）。結果是一條龍訓練完、verdict TRUSTED，右欄還停在
+//    「TRAIN 0 / VALID 0 / TEST 0・還有 120 張沒指派」＋「類別分佈（無資料）」。
+let SPLIT = null;        // GET /runs/{id}.split（s04 之前 null）
+let RECIPE = null;       // GET /runs/{id}.recipe（s07 之前 null）
+let CLASSES = null;      // GET /datasets/{ds}/classes（s02 之前 404）
+let CLASSES_FOR = null;  // 已經抓過的 `<ds>:<class_table_version>`，同一版不重抓
+
+const SPLIT_KEYS = ['train','valid','sealed_test','anchor','unassigned'];
+const SPLIT_ZH = {train:'train', valid:'valid', sealed_test:'sealed test（封印）',
+                  anchor:'anchor（量標註天花板的那把尺）', unassigned:'未指派'};
+const SPLIT_COLOR = {train:'--ds-train', valid:'--ds-valid', sealed_test:'--ds-test',
+                     anchor:'--ds-coral', unassigned:'--ds-unassigned'};
+
+function renderSplit(){
+  const sp = SPLIT;
+  const num = k => sp ? (sp[k] ?? 0) : '—';     // s04 之前是「—」不是 0：0 會被讀成「都沒分到」
+  $('#n-train').textContent = num('train');
+  $('#n-valid').textContent = num('valid');
+  $('#n-test').textContent  = num('sealed_test');
+  const t = SPLIT_KEYS.reduce((a,k)=>a+(sp?(sp[k]||0):0),0) || 1;
+  $('#bar').innerHTML = !sp ? '' : SPLIT_KEYS.map(k=>
+    `<i style="width:${(sp[k]||0)/t*100}%;background:var(${SPLIT_COLOR[k]})"`
+    + ` title="${SPLIT_ZH[k]} ${sp[k]||0}"></i>`).join('');
+
+  const h = $('#health');
+  if (!sp){
+    h.className = 'warn';
+    h.textContent = PROG.total ? `${PROG.total} 張已進場；s04 還沒落檔，所以還沒有 split`
+                               : '還沒有資料';
+  } else if (sp.unassigned){
+    h.className='warn'; h.textContent=`還有 ${sp.unassigned} 張沒指派（後端 s04 的數字）`;
+  } else if (!sp.valid){
+    h.className='warn'; h.textContent='valid 是 0 — 沒有驗證集你看不到 overfit';
+  } else {
+    h.className='ok';
+    h.textContent=`train ${sp.train} / valid ${sp.valid} 已落檔（後端 s04 指派並寫進 data.yaml）`;
+  }
+  $('#split-src').textContent = sp
+    ? `anchor ${sp.anchor||0} 張量標註天花板・sealed test ${sp.sealed_test||0} 張封印（不進 data.yaml）`
+    : '分層由後端 s04 決定（GT 三分 → 分層抽樣 → 落檔 02-dataset/）。';
+  // s04 之後 split 的真相在後端：手動指派只會讓卡片和側欄數字對不上，那是下一個謊
+  document.querySelectorAll('[data-assign]').forEach(b=>{
+    b.disabled = !!sp;
+    b.title = sp ? 's04 已經分好並落檔了，split 的真相在後端' : '';
+  });
+}
+
+// 類別分佈 = s02 凍結的 class 真相表（全系統唯一 class 來源），不是前端數 cls[]。
+function renderDist(){
+  const t = CLASSES;
+  if (!t || !t.names){ $('#dist').innerHTML = '<div><span>s02 還沒凍結 class 表</span></div>'; return; }
+  const cs = t.cluster_stats || {}, byId = new Map((cs.clusters||[]).map(c=>[c.cluster_id, c]));
+  const rows = (t.naming_rationale||[]).map(r=>{
+    const c = byId.get(r.cluster_id) || {};
+    return `<div title="${esc(r.rationale)}"><span>${esc(r.name)}</span>`
+         + `<b>${c.size ?? '—'} 張 / ${c.support ?? '—'} 框</b></div>`;
+  }).join('');
+  $('#dist').innerHTML = rows
+    + `<div style="border:0;color:var(--ds-ink-faint);padding-top:6px">`
+    + `${esc(t.version)} · nc ${t.nc} · k=${cs.k} · silhouette ${cs.silhouette}`
+    + `${t.naming === 'fallback' ? ' · 機械命名（LLM 降級）' : t.naming ? ' · LLM 命名' : ''}`
+    + `<br>張數 / bbox 實例數</div>`;
+}
+
+function renderRecipe(){
+  const r = RECIPE;
+  if (!r){
+    // 不要寫「s05 還沒跑」：s05 做完、s06 還沒凍結的那幾十秒裡，那句話就是假的
+    $('#recipe').textContent =
+      '配方還沒凍結。模型由 s05 探針選、epochs／imgsz 由 s06 凍結，不在這裡填。';
+    return;
+  }
+  $('#recipe').innerHTML = [
+    ['模型', r.model], ['epochs', r.epochs], ['imgsz', r.imgsz], ['batch', r.batch],
+    ['device', r.device], ['train_id', r.train_id],
+    ['狀態', `${r.status ?? '—'}${r.elapsed_s != null ? `（${r.elapsed_s} 秒）` : ''}`],
+  ].map(([k,v])=>`${k} <b>${v ?? '—'}</b>`).join('<br>');
+  if (r.device) $('#dev').textContent = r.device;   // header 的 device 也別自己編
+}
+
+function renderArtifacts(s){
+  const rows = (s.artifacts||[]).map(a=>`${a.kind} <b>${a.path}</b>`);
+  if (SPLIT) rows.push('dataset <b>02-dataset/data.yaml</b>',
+                       `splits <b>01-raw-data/datasets/${s.ds_id || DS}/splits.json</b>`,
+                       'sealed <b>03-sealed-test/</b>（封印，不進 data.yaml）');
+  $('#artifacts').innerHTML = rows.join('<br>') || '跑完 s04 才有。';
+}
+
+async function fetchClasses(){
+  if (!DS) return;
+  // s02 之前是 404，那不是錯誤（別丟進錯誤橫幅嚇人）
+  try{ CLASSES = await getJSON(`/api/v1/datasets/${DS}/classes`); }catch{ CLASSES = null; }
+  renderDist();
+}
+
+function renderStats(){
+  renderSplit();
+
+  const all = new Set(); IMAGES.forEach(i=>i.cls.forEach(cl=>all.add(cl)));
+  const sel = $('#fcls'), keep = sel.value;
+  const opts = '<option value="">全部</option>' + [...all].sort().map(c=>`<option>${c}</option>`).join('');
+  if (sel.innerHTML !== opts){ sel.innerHTML = opts; sel.value = keep; }
+
+  $('#shown').textContent = `${visible().length} / ${IMAGES.length}`;
+  $('#selcount').textContent = `已選 ${SELECTED.size} 張`;
+}
+
+function updateProgress(){
+  const t = PROG.total || 0;
+  $('#pbar').style.width = t ? (PROG.loaded/t*100)+'%' : '0%';
+}
+
+// ---------- s03 天花板：IoU 直方圖（inline SVG 自畫，不引 CDN） ----------
+function drawIou(d){
+  const hist = d.iou_hist || [], n = hist.length, max = Math.max(1, ...hist);
+  const W = 100, H = 38;
+  let svg = hist.map((v,i)=>{
+    const h = v/max*(H-2);
+    return `<rect x="${(i*W/n).toFixed(2)}" y="${(H-h).toFixed(2)}" width="${(W/n-0.6).toFixed(2)}"`
+         + ` height="${h.toFixed(2)}" fill="var(--ds-coral)"></rect>`;
+  }).join('');
+  if (d.threshold != null){    // 門檻線：hist 的 bin 橫跨 IoU 0..1
+    const x = (d.threshold*W).toFixed(2);
+    svg += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="var(--ds-warn)" stroke-width="1"`
+        +  ` stroke-dasharray="3 2" vector-effect="non-scaling-stroke"></line>`;
+  }
+  // 合成 GT 的 1.000 是**退化值**，不是天花板證據：demo 的 gt.json 與 auto-bbox 用的是
+  // 同一套連通分量定義，IoU 必然 1.0。真人工框（roboflow）量出來的 pool 中位數是 0.638 ——
+  // 兩者講同一句「這是整條流水線的天花板」，就是把教學重點整個講反。
+  const degen = d.degenerate ?? (d.source === 'synthetic');
+  if (degen) svg = svg.replace(/var\(--ds-coral\)/g, 'var(--ds-ink-dim)');
+  $('#iou-hist').innerHTML = svg;
+  const pass = d.verdict === 'pass';
+  $('#iou-txt').innerHTML = `來源 ${d.source} · n=${d.n}<br>`
+    + `IoU 中位數 <b style="color:var(--ds-ink)">${(+d.iou_median).toFixed(3)}</b>`
+    + ` vs 門檻 ${(+d.threshold).toFixed(2)}`
+    + ` <b style="color:var(--ds-${pass?'ok':'err'})">${pass?'PASS':'FAIL'}</b><br>`
+    + (degen ? '<b style="color:var(--ds-warn)">退化值</b>：合成 GT 與 auto-bbox 是同一套連通分量'
+             + '定義，IoU 必然 1.0 —— 不是天花板證據。真人工框量出來是 0.64（GET /eval/ceiling）。'
+      : pass ? '這是整條流水線的天花板，模型再好也不會超過它。'
+             : '問題在標註不在模型 —— 先修 auto-label 再談訓練。');
+}
+
+// =====================================================================
+// M4 · s08 評分：verdict badge + 四張 inline SVG + 推論圖牆
+// 資料來源（metric-auditor 的契約，前端一個字都不自己算）：
+//   GET /api/v1/eval/{run}/charts      → {op_conf,curves[],pr[],confusion{},per_class[],speed{},noise_floor,ci}
+//   GET /api/v1/eval/{run}/verdict     → {verdict,why,checks[],delta,significant,anchor_ok,...}
+//   GET /api/v1/eval/{run}/predictions → {results[{image_id,url,boxes,gt_boxes,iou_vs_gt}],speed}
+// 事件（SSE）走 charts.series / eval.verdict / eval.perclass / eval.noise_floor 同一組 render。
+// =====================================================================
+const EVAL = {run_id:null, charts:null, verdict:null, names:{}, op_conf:null, noise_floor:null};
+const MIN_SUPPORT = 30;                  // 與 src/eval/metrics.MIN_SUPPORT 同一個數字
+let EVOLVE_BLOCKED = false;              // verdict invalid → 進化下一輪整條路徑擋住
+
+// 六類共用的線色：只取 --ds-* token，一個新 hex 都沒有
+const CLS_TOKENS = ['--ds-coral','--ds-train','--ds-valid','--ds-test','--ds-ink-dim','--ds-coral-700'];
+const clsColor = i => `var(${CLS_TOKENS[i % CLS_TOKENS.length]})`;
+
+// 圖表內部座標（width:100% 縮放；手機寬度不會橫向捲動）
+const CW = 400, CPAD = {l:74, r:58, t:20, b:34};   // l 要塞得下 edge-ring 這種類別名，t 要塞得下軸名
+const PX0 = CPAD.l, PX1 = CW - CPAD.r;
+const px = t => PX0 + t * (PX1 - PX0);                        // t∈[0,1] → x
+const py = (t, H) => (H - CPAD.b) - t * (H - CPAD.b - CPAD.t); // t∈[0,1] → y（由下往上）
+// 全場唯一一支跳脫（`"` 也要擋：renderDist 把 LLM 寫的命名理由塞進 title 屬性）
+const esc = s => String(s ?? '').replace(/[<>&"]/g,
+  c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const f4 = v => (v==null || Number.isNaN(+v)) ? '—' : (+v).toFixed(4);
+
+function frame(H, xlab, ylab, ylab2){
+  return `<path class="axis" d="M${PX0} ${CPAD.t} L${PX0} ${H-CPAD.b} L${PX1} ${H-CPAD.b}`
+       + (ylab2 ? ` M${PX1} ${CPAD.t} L${PX1} ${H-CPAD.b}` : '') + `"></path>`
+       + `<text x="${PX1}" y="${H-8}" font-size="12.6" text-anchor="end">${esc(xlab)}</text>`
+       + `<text x="${PX0}" y="${CPAD.t-5}" font-size="12.6">${esc(ylab)}</text>`
+       + (ylab2 ? `<text x="${PX1}" y="${CPAD.t-5}" font-size="12.6" text-anchor="end">${esc(ylab2)}</text>` : '');
+}
+// noise floor 灰帶（橫式）：帶高 = noise floor，落在帶內的差異一律讀不出來
+function bandY(lo, hi, H, label){
+  const y0 = py(hi, H), y1 = py(lo, H);
+  return `<rect class="nf-band" x="${PX0}" y="${y0.toFixed(2)}" width="${(PX1-PX0).toFixed(2)}"`
+       + ` height="${Math.max(0, y1-y0).toFixed(2)}"><title>${esc(label)}</title></rect>`;
+}
+function poly(pts, color, dashed){
+  if (pts.length < 2) return pts.map(p=>`<circle cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="1.6" fill="${color}"></circle>`).join('');
+  return `<polyline class="ln" points="${pts.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' ')}"`
+       + ` stroke="${color}"${dashed?' stroke-dasharray="3 2"':''}></polyline>`;
+}
+
+// 飽和點：第一個 epoch，使得「它與最佳值的差距已落在雜訊帶內」——
+// 之後的每一分增益都讀不出來。若只有最後一個 epoch 符合，代表還在爬（訓練不足）。
+function satEpoch(maps, nf){
+  const best = Math.max(...maps);
+  for (let i=0;i<maps.length;i++) if (best - maps[i] <= nf)
+    return {i, epoch:i+1, best, saturated: i < maps.length-1};
+  return {i:maps.length-1, epoch:maps.length, best, saturated:false};
+}
+// Δ 落在雜訊帶內 → 灰掉標「雜訊」。門檻含等號：正好等於 noise floor 仍然讀不出來。
+const isNoise = (delta, nf) => delta != null && nf != null && Math.abs(delta) <= nf;
+function deltaHTML(delta, nf){
+  if (delta == null) return '<b>—</b>（沒有可比的上一輪）';
+  const s = (delta >= 0 ? '+' : '') + (+delta).toFixed(4);
+  return isNoise(delta, nf)
+    ? `<b class="noise">${s}</b> <span class="noise">雜訊（|Δ| ≤ noise floor ${f4(nf)}，記「試過、沒用」）</span>`
+    : `<b style="color:var(--ds-coral)">${s}</b> 超出雜訊帶`;
+}
+const weakNote = sup => (sup < MIN_SUPPORT ? `（support ${sup}，樣本不足，僅供提示）` : `（support ${sup}）`);
+
+// ---------- 1. 訓練曲線（loss 與 mAP50-95 雙軸，標飽和點） ----------
+function drawCurves(curves, nf){
+  const H = 190, el = $('#chart-curves');
+  el.setAttribute('viewBox', `0 0 ${CW} ${H}`);
+  const c = curves || [];
+  // loss 定義與 src/eval/checks.overfit_gap 同一個：box + cls（換定義就會跟後端裁決對不上）
+  const tl = r => (+r.train_box_loss||0) + (+r.train_cls_loss||0);
+  const vl = r => (+r.val_box_loss||0) + (+r.val_cls_loss||0);
+  const maps = c.map(r => +r.map5095 || 0);
+  const lmax = Math.max(1e-6, ...c.map(tl), ...c.map(vl));
+  const mmax = Math.max(0.05, nf*1.2, ...maps);
+  const X = i => px(c.length > 1 ? i/(c.length-1) : 0.5);
+  const sat = c.length ? satEpoch(maps, nf) : null;
+  const bTop = sat ? sat.best : nf, bBot = Math.max(0, bTop - nf);
+  let s = bandY(bBot/mmax, bTop/mmax, H,
+                `noise floor 2σ = ${f4(nf)}：與最佳值差距在此帶內的 epoch 讀不出差別`)
+        + frame(H, 'epoch', 'loss', 'mAP50-95');
+  s += `<text x="${PX0}" y="${H-8}" font-size="10.8">雜訊帶 ${f4(nf)}</text>`;   // 下緣，不壓到曲線
+  if (!c.length){
+    s += `<text x="${(PX0+PX1)/2}" y="${H/2}" font-size="14.4" text-anchor="middle">尚無曲線資料</text>`;
+  } else {
+    s += poly(c.map((r,i)=>[X(i), py(tl(r)/lmax, H)]), 'var(--ds-coral)');
+    s += poly(c.map((r,i)=>[X(i), py(vl(r)/lmax, H)]), 'var(--ds-coral-700)', true);
+    s += poly(c.map((r,i)=>[X(i), py((+r.map5095||0)/mmax, H)]), 'var(--ds-train)');
+    const sx = X(sat.i), sy = py(maps[sat.i]/mmax, H);
+    s += `<line class="rule" x1="${sx}" y1="${CPAD.t}" x2="${sx}" y2="${H-CPAD.b}"`
+       + ` stroke="var(--ds-valid)" stroke-dasharray="3 2"></line>`
+       + `<circle cx="${sx}" cy="${sy.toFixed(2)}" r="2.2" fill="var(--ds-valid)"></circle>`
+       + `<text x="${Math.min(Math.max(sx+3, PX0+40), PX1-110)}" y="${CPAD.t-5}" font-size="12.6" fill="var(--ds-valid)">`
+       + `飽和點 e${sat.epoch}</text>`
+       + `<text x="${PX0-2}" y="${py(1,H)+4}" font-size="11.7" text-anchor="end">${lmax.toFixed(2)}</text>`
+       + `<text x="${PX0-2}" y="${py(0,H)}" font-size="11.7" text-anchor="end">0</text>`
+       + `<text x="${PX1+2}" y="${py(1,H)+4}" font-size="11.7">${mmax.toFixed(2)}</text>`
+       + `<text x="${PX1+2}" y="${py(0,H)}" font-size="11.7">0</text>`;
+  }
+  el.innerHTML = s;
+  $('#lg-curves').innerHTML = [
+    ['train loss（box+cls）','var(--ds-coral)'], ['val loss','var(--ds-coral-700)'],
+    ['mAP50-95（右軸）','var(--ds-train)'], ['飽和點','var(--ds-valid)'],
+  ].map(([t,c2])=>`<span><i style="border-color:${c2}"></i>${t}</span>`).join('');
+  $('#hint-curves').innerHTML = !c.length ? '尚無資料。'
+    : (sat.saturated
+        ? `飽和點 epoch ${sat.epoch}：從這裡之後的每一分增益都落在 noise floor ${f4(nf)} 的灰帶內，讀不出來。`
+        : `<b class="noise">未飽和</b>：最佳 val mAP 落在最後一個 epoch（${c.length}/${c.length}），`
+          + `曲線還在往上 —— 這是訓練不足，不是過擬合。`);
+}
+
+// ---------- 2. PR curve（每類一條） ----------
+function drawPR(pr, nf){
+  const H = 190, el = $('#chart-pr');
+  el.setAttribute('viewBox', `0 0 ${CW} ${H}`);
+  const list = pr || [];
+  // 灰帶在此圖是同尺度的量尺：precision 軸上這麼高的落差就是讀不出來的落差
+  let s = bandY(0, Math.min(1, nf), H, `noise floor 2σ = ${f4(nf)}（同 0..1 尺度的量尺）`)
+        + frame(H, 'recall', 'precision');
+  s += `<text x="${PX0-2}" y="${py(1,H)+4}" font-size="11.7" text-anchor="end">1.0</text>`
+     + `<text x="${PX0-2}" y="${py(0,H)}" font-size="11.7" text-anchor="end">0</text>`
+     + `<text x="${PX1}" y="${H-CPAD.b+12}" font-size="11.7" text-anchor="end">1.0</text>`;
+  if (!list.length){
+    s += `<text x="${(PX0+PX1)/2}" y="${H/2}" font-size="14.4" text-anchor="middle">尚無 PR 資料</text>`;
+  } else {
+    list.forEach((c,i)=>{
+      const pts = (c.points||[]);
+      const step = Math.max(1, Math.ceil(pts.length/200));      // 點太多就抽樣，畫面看不出差別
+      const xy = pts.filter((_,k)=>k%step===0).map(p=>[px(+p.r||0), py(+p.p||0, H)]);
+      s += poly(xy, clsColor(i), c.support < MIN_SUPPORT);      // 樣本不足 → 虛線
+    });
+  }
+  el.innerHTML = s;
+  $('#lg-pr').innerHTML = list.map((c,i)=>
+    `<span><i style="border-color:${clsColor(i)};${c.support<MIN_SUPPORT?'border-top-style:dashed':''}"></i>`
+    + `${esc(c.name)} ${weakNote(c.support)}</span>`).join('') || '—';
+  $('#hint-pr').textContent = list.length
+    ? `虛線 = support < ${MIN_SUPPORT} 的類別，只能當提示，不得當停止或達標依據。`
+    : '尚無資料。';
+}
+
+// ---------- 3. 混淆矩陣 heatmap ----------
+function drawConfusion(cm, nf, nGt){
+  const el = $('#chart-cm');
+  const labels = (cm && cm.labels) || [], M = (cm && cm.matrix) || [];
+  const gx = 78, gy = 50;
+  const k = labels.length, cell = k ? Math.min(34, (CW - gx - 8)/k) : 0;
+  const H = Math.max(140, gy + k*cell + 60);
+  el.setAttribute('viewBox', `0 0 ${CW} ${H}`);
+  const max = Math.max(1, ...M.flat().map(v=>+v||0));
+  let s = '';
+  labels.forEach((lb,i)=>{
+    s += `<text x="${gx-4}" y="${gy + i*cell + cell/2 + 4}" font-size="10.8" text-anchor="end">${esc(lb)}</text>`;
+    s += `<text transform="translate(${gx + i*cell + cell/2},${gy-4}) rotate(-35)" font-size="10.8">${esc(lb)}</text>`;
+  });
+  M.forEach((row,r)=>(row||[]).forEach((v,c)=>{
+    const x = gx + c*cell, y = gy + r*cell, on = (+v||0) > 0;
+    s += `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${(cell-1).toFixed(2)}"`
+       + ` height="${(cell-1).toFixed(2)}" fill="var(--ds-coral)"`
+       + ` fill-opacity="${on ? (0.2 + 0.8*v/max).toFixed(3) : 0}" stroke="var(--ds-line)"`
+       + ` stroke-width="0.4"><title>pred ${esc(labels[r])} / gt ${esc(labels[c])}：${v}</title></rect>`
+       + `<text x="${(x+cell/2-0.5).toFixed(2)}" y="${(y+cell/2+4).toFixed(2)}" font-size="11.7"`
+       + ` text-anchor="middle" fill="${on?'var(--ds-ink)':'var(--ds-ink-faint)'}">${v}</text>`;
+  }));
+  // 計數尺度的 noise floor：2σ × GT 框數 = 「差幾格以內讀不出來」
+  const nfCells = nf * (nGt || 0);
+  const barX = gx, barW = Math.max(1, k*cell - 1), barY = gy + k*cell + 18;
+  for (let i=0;i<20;i++)
+    s += `<rect x="${(barX + i*barW/20).toFixed(2)}" y="${barY}" width="${(barW/20).toFixed(2)}"`
+       + ` height="6" fill="var(--ds-coral)" fill-opacity="${(0.2+0.8*(i+1)/20).toFixed(3)}"></rect>`;
+  s += `<rect class="nf-band" x="${barX}" y="${barY-2}"`
+     + ` width="${(barW*Math.min(1, nfCells/max)).toFixed(2)}" height="10">`
+     + `<title>雜訊帶 ≈ ${nfCells.toFixed(1)} 格</title></rect>`
+     + `<text x="${barX}" y="${barY+22}" font-size="10.8">0</text>`
+     + `<text x="${barX+barW}" y="${barY+22}" font-size="10.8" text-anchor="end">${max}</text>`
+     + `<text x="${barX}" y="${barY-7}" font-size="10.8">雜訊帶 ≈ ${nfCells.toFixed(1)} 格（2σ ${f4(nf)} × ${nGt||0} 個 GT 框）</text>`;
+  if (!k) s = `<text x="${CW/2}" y="60" font-size="14.4" text-anchor="middle">尚無混淆矩陣</text>`
+             + `<rect class="nf-band" x="${PX0}" y="70" width="${(PX1-PX0)*0}" height="8"></rect>`;
+  el.innerHTML = s;
+  $('#hint-cm').innerHTML = k
+    ? `作業點 conf <b>${f4(EVAL.op_conf ?? (cm && cm.conf))}</b>、IoU ${cm.iou ?? '—'}；`
+      + `每個模型的作業點都不同（實測 0.01575 vs 0.40165），<b>不是寫死 0.25</b>。`
+      + `差 ${nfCells.toFixed(1)} 格以內的變化讀不出來。`
+    : '尚無資料。';
+}
+
+// ---------- 4. per-class AP50 + CI 誤差線 ----------
+function drawPerClass(per, nf){
+  const rows = per || [], el = $('#chart-perclass');
+  const rh = 28, H = Math.max(130, CPAD.t + rows.length*rh + 48);
+  el.setAttribute('viewBox', `0 0 ${CW} ${H}`);
+  // 直式灰帶：AP 軸上 0..noise floor —— 比這個窄的差距一律是雜訊
+  let s = `<rect class="nf-band" x="${PX0}" y="${CPAD.t}" width="${(nf*(PX1-PX0)).toFixed(2)}"`
+        + ` height="${(H-CPAD.b-CPAD.t).toFixed(2)}"><title>noise floor 2σ = ${f4(nf)}</title></rect>`
+        + `<path class="axis" d="M${PX0} ${CPAD.t} L${PX0} ${H-CPAD.b} L${PX1} ${H-CPAD.b}"></path>`
+        + `<text x="${PX0}" y="${H-8}" font-size="11.7">0</text>`
+        + `<text x="${PX1}" y="${H-8}" font-size="11.7" text-anchor="end">AP50 = 1.0</text>`
+        + `<text x="${(PX0+PX1)/2}" y="${H-8}" font-size="10.8" text-anchor="middle">雜訊帶 ${f4(nf)}</text>`;
+  rows.forEach((p,i)=>{
+    const y = CPAD.t + 14 + i*rh, w = (+p.ap50||0)*(PX1-PX0), weak = p.support < MIN_SUPPORT;
+    s += `<text x="${PX0-4}" y="${y+3}" font-size="11.7" text-anchor="end">${esc(p.name)}</text>`
+       + `<rect x="${PX0}" y="${y-6}" width="${w.toFixed(2)}" height="9" fill="${clsColor(i)}"`
+       + ` fill-opacity="${weak?0.45:0.9}"><title>${esc(p.name)} AP50 ${f4(p.ap50)}</title></rect>`;
+    if (p.ci_lo != null && p.ci_hi != null){
+      // 誤差線畫在長條「下面」一格，不要疊在長條上 —— 疊上去等於沒畫（第一版就是這樣）
+      const a = px(+p.ci_lo), b = px(+p.ci_hi), cy = y + 11;
+      s += `<line class="rule" x1="${a.toFixed(2)}" y1="${cy}" x2="${b.toFixed(2)}" y2="${cy}"`
+         + ` stroke="var(--ds-ink-dim)"></line>`
+         + `<line class="rule" x1="${a.toFixed(2)}" y1="${cy-3}" x2="${a.toFixed(2)}" y2="${cy+3}" stroke="var(--ds-ink-dim)"></line>`
+         + `<line class="rule" x1="${b.toFixed(2)}" y1="${cy-3}" x2="${b.toFixed(2)}" y2="${cy+3}" stroke="var(--ds-ink-dim)"></line>`;
+    }
+    s += `<text x="${PX1+3}" y="${y+3}" font-size="10.8" fill="${weak?'var(--ds-warn)':'var(--ds-ink-faint)'}">`
+       + `${(+p.ap50||0).toFixed(2)}${weak?' 少':''}</text>`;
+  });
+  if (!rows.length) s += `<text x="${(PX0+PX1)/2}" y="${H/2}" font-size="14.4" text-anchor="middle">尚無 per-class</text>`;
+  el.innerHTML = s;
+  const weak = rows.filter(p=>p.support < MIN_SUPPORT);
+  $('#lg-pc').innerHTML = rows.map((p,i)=>
+    `<span><i style="border-color:${clsColor(i)}"></i>${esc(p.name)} AP50 ${f4(p.ap50)}`
+    + (p.ci_lo == null ? ' CI 不給' : ` CI [${f4(p.ci_lo)}, ${f4(p.ci_hi)}]`)
+    + ` ${weakNote(p.support)}</span>`).join('') || '—';
+  const noCI = rows.filter(p=>p.support > 0 && p.ci_lo == null);
+  $('#hint-pc').innerHTML = rows.length
+    ? `誤差線 = 95% bootstrap CI（重抽單位是影像不是框）。`
+      + (noCI.length ? ` <b>${noCI.length} 個類別沒有誤差線</b>：${esc(noCI[0].ci_note
+          || '該類只落在極少數影像上，重抽抽不到它的次數太多，給不出 CI')}` : '')
+      + (weak.length ? ` <b style="color:var(--ds-warn)">${weak.length} 個類別 support < ${MIN_SUPPORT}：`
+          + `樣本不足，僅供提示</b>，不得當停止或達標依據。` : '')
+    : '尚無資料。';
+}
+
+function renderCharts(){
+  const c = EVAL.charts || {};
+  const nf = +(EVAL.noise_floor ?? c.noise_floor ?? 0) || 0;
+  const nGt = (c.per_class||[]).reduce((a,p)=>a + (+p.support||0), 0);
+  drawCurves(c.curves, nf);
+  drawPR(c.pr, nf);
+  drawConfusion(c.confusion, nf, nGt);
+  drawPerClass(c.per_class, nf);
+}
+function mergeCharts(d){
+  EVAL.charts = Object.assign({}, EVAL.charts, d || {});
+  if (d && d.op_conf != null) EVAL.op_conf = d.op_conf;
+  // 契約 §4 的 charts.series 只有 {curves|pr|confusion|per_class}，沒有 op_conf —— 但作業點
+  // 就躺在 confusion.conf 裡。不補這一行的話，走 SSE 看即時長出來的人（主線教學路徑）
+  // 混淆矩陣的 hint 永遠是「作業點 conf —」，只有事後手動按「載入」才看得到數字。
+  if (d && d.confusion && d.confusion.conf != null && EVAL.op_conf == null)
+    EVAL.op_conf = d.confusion.conf;
+  if (d && d.noise_floor != null) EVAL.noise_floor = d.noise_floor;
+  (EVAL.charts.per_class||[]).forEach(p=>{ EVAL.names[p.cls] = p.name; });
+  renderCharts();
+}
+function mergePerClass(d){              // 契約 §6：eval.perclass 依 (run,cls) upsert，不是 append
+  const c = EVAL.charts = EVAL.charts || {};
+  c.per_class = c.per_class || [];
+  const i = c.per_class.findIndex(p=>p.cls === d.cls);
+  if (i < 0) c.per_class.push(d); else c.per_class[i] = Object.assign({}, c.per_class[i], d);
+  c.per_class.sort((a,b)=>a.cls-b.cls);
+  EVAL.names[d.cls] = d.name ?? EVAL.names[d.cls];
+  renderCharts();
+}
+
+// ---------- verdict badge（三色）＋ 四項 check ＋ 擋住進化路徑 ----------
+const VERDICT_ZH = {trusted:'可信 TRUSTED', suspect:'存疑 SUSPECT', invalid:'無效 INVALID', final:'FINAL'};
+function setEvolveBlocked(blocked, why){
+  EVOLVE_BLOCKED = !!blocked;
+  const b = $('#evolve');
+  b.disabled = true;                     // s09/s10 是 M6：這顆本來就還不能按
+  b.classList.toggle('blocked', EVOLVE_BLOCKED);
+  b.title = EVOLVE_BLOCKED ? '被 verdict invalid 擋住' : 's09/s10 於 M6 實作';
+  $('#evolve-why').innerHTML = why;
+}
+function renderVerdict(v){
+  const V = EVAL.verdict = Object.assign({}, EVAL.verdict, v || {});
+  if (V.noise_floor != null) EVAL.noise_floor = V.noise_floor;
+  const kind = ['trusted','suspect','invalid','final'].includes(V.verdict) ? V.verdict : 'suspect';
+  const badge = $('#vbadge');
+  badge.hidden = false;
+  badge.className = 'vbadge ' + kind;
+  badge.textContent = `verdict ${VERDICT_ZH[kind]}`;
+  const checks = V.checks || [];
+  // eval.verdict 事件不帶 why（只有 REST 的 /verdict 有），缺的時候用沒過的 check 名字補一句，
+  // 不要留一個「已擋住：」後面空白的句子 —— 那看起來像壞掉而不是像裁決。
+  const failed = checks.filter(c => !c.pass).map(c => c.name);
+  if (!V.why) V.why = failed.length ? `${failed.length} 項 check 沒過（${failed.join('、')}）`
+                                    : '（這一筆沒有附理由）';
+  $('#vpanel').innerHTML = `<div class="kv" style="margin-bottom:var(--ds-2)">`
+    + `<b>${esc(VERDICT_ZH[kind])}</b> — ${esc(V.why || '（沒有附理由）')}</div>`
+    + (checks.length ? checks.map(c=>`<div class="chk"><b class="${c.pass?'pass':'fail'}">`
+        + `${c.pass?'PASS':'FAIL'} ${esc(c.name)}</b><span>${esc(c.detail||'')}</span></div>`).join('')
+      : '<div class="kv">（這一筆沒有帶 checks）</div>');
+  const nf = +(EVAL.noise_floor ?? 0) || 0;
+  const ci = V.ci || {};
+  const w = V.weakest_class;
+  $('#verdict-num').innerHTML = [
+    `run <b>${esc(V.run_id ?? EVAL.run_id ?? '—')}</b> · train <b>${esc(V.train_id ?? '—')}</b>`
+      + ` · split <b>${esc(V.split ?? '—')}</b>`,
+    `mAP50 <b>${f4(V.map50)}</b> · mAP50-95 <b>${f4(V.map5095)}</b>`
+      + ` · 95% CI [${f4(ci.lo)}, ${f4(ci.hi)}]（寬 ${f4(ci.width)}）`,
+    `noise floor 2σ <b>${f4(nf)}</b>（σ ${f4(V.sigma)}）· Δ vs ${esc(V.compared_to ?? '—')}：${deltaHTML(V.delta, nf)}`,
+    `significant <b class="${V.significant?'':'noise'}">${V.significant===true?'true':V.significant===false?'false':'—'}</b>`
+      + ` ${esc(V.significance_why || '')}`,
+    `anchor gate <b>${V.anchor_ok===true?'ok':V.anchor_ok===false?'drift':'—'}</b>`
+      + `（recall ${f4(V.anchor_recall)}，只當 gate 不當 rank）`,
+    w ? `最弱類別 <b>${esc(w.name)}</b> AP50 ${f4(w.ap50)} ${weakNote(w.support)}` : '',
+    `ds ${esc(V.ds_version ?? '—')} · 指紋 ${esc((V.ds_fingerprint||'—').slice(0,8))}`
+      + ` · class table ${esc(V.class_table_version ?? '未分類')}`,
+  ].filter(Boolean).join('<br>');
+  setEvolveBlocked(kind === 'invalid',
+    kind === 'invalid'
+      ? `<span style="color:var(--ds-err)">verdict invalid — 進化下一輪整條路徑已擋住：${esc(V.why||'')}</span>`
+      : kind === 'trusted'
+        // trusted 在這份 12 張的 valid 上是**拿得到**的（test_size_power 的 support 門檻是註記
+        // 不是達標門檻），但 support < 30 的類別數字仍然只能當提示 —— 兩件事不要混在一起讀。
+        ? 's09/s10 於 M6 實作。verdict trusted，這一輪的數字可以當證據；'
+          + `support < ${MIN_SUPPORT} 的類別仍然只能當提示，不得單獨當達標依據。`
+        : `<span style="color:var(--ds-warn)">verdict suspect — 數字讀得出來但不得當「進步了」的證據</span>`
+          + `（s09/s10 於 M6 實作）`);
+}
+
+// ---------- 推論圖牆（valid split；預測框 coral、GT 綠虛線） ----------
+// 框的座標基準與縮圖牆逐字相同：.thumb 長寬比 1:1 ＋ .ov viewBox 0 0 100 100 +
+// preserveAspectRatio="none"。?selftest=1 第 19 條逐像素守這件事（差 > 1px 就 FAIL）。
+function predBoxesSVG(rec, op, showAll){
+  const gt = (rec.gt_boxes||[]).map(b=>{
+    const x=((b.cx-b.w/2)*100).toFixed(2), y=((b.cy-b.h/2)*100).toFixed(2);
+    return `<rect class="gt" x="${x}" y="${y}" width="${(b.w*100).toFixed(2)}" height="${(b.h*100).toFixed(2)}"`
+         + ` data-kind="gt" data-cls="${b.cls}" data-iou="${rec.iou_vs_gt ?? ''}"></rect>`;
+  }).join('');
+  const pred = (rec.boxes||[]).filter(b => showAll || op == null || b.conf >= op).map(b=>{
+    const x=((b.cx-b.w/2)*100).toFixed(2), y=((b.cy-b.h/2)*100).toFixed(2);
+    const faint = op != null && b.conf < op;
+    return `<rect class="${faint?'faint':''}" x="${x}" y="${y}" width="${(b.w*100).toFixed(2)}"`
+         + ` height="${(b.h*100).toFixed(2)}" data-kind="pred" data-cls="${b.cls}"`
+         + ` data-conf="${b.conf}" data-iou="${rec.iou_vs_gt ?? ''}"></rect>`;
+  }).join('');
+  return gt + pred;                       // 預測框畫在 GT 之上，hover 才抓得到
+}
+function makePredCard(rec, op, showAll){
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = `<div class="thumb-wrap">
+      <img class="thumb" loading="lazy" alt=""
+           onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'thumb'}))">
+      <svg class="ov" viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>
+    <div class="meta"><div class="name"></div><div class="st"></div></div>`;
+  if (rec.url) el.querySelector('.thumb').src = rec.url;
+  el.querySelector('.name').textContent = rec.name || rec.image_id;
+  const nPred = (rec.boxes||[]).filter(b=>op == null || b.conf >= op).length;
+  el.querySelector('.st').textContent =
+    `pred ${nPred}/${(rec.boxes||[]).length} · GT ${(rec.gt_boxes||[]).length} · IoU ${f4(rec.iou_vs_gt)}`;
+  el.querySelector('.ov').innerHTML = predBoxesSVG(rec, op, showAll);
+  return el;
+}
+function drawPredWall(){
+  const p = EVAL.pred;
+  const wall = $('#pwall'); wall.innerHTML = '';
+  if (!p){ $('#pstat').innerHTML = '尚未載入預測。這面牆只吃 <b>valid</b> split，sealed-test 不會出現在這裡。'; return; }
+  const op = EVAL.op_conf, showAll = $('#show-all-boxes').checked;
+  p.results.forEach(r => wall.appendChild(makePredCard(r, op, showAll)));
+  const nPred = p.results.reduce((a,r)=>a + (r.boxes||[]).length, 0);
+  const nShown = p.results.reduce((a,r)=>a + (r.boxes||[]).filter(b=>op==null||b.conf>=op).length, 0);
+  const nGt = p.results.reduce((a,r)=>a + (r.gt_boxes||[]).length, 0);
+  $('#pstat').innerHTML = `<b>${p.split}</b> ${p.results.length} 張 · 預測框 <b>${nPred}</b> 個`
+    + `（作業點 conf ≥ <b>${f4(op)}</b> 的有 <b>${nShown}</b> 個${showAll?'，其餘以淡色畫出':''}）`
+    + ` · GT 框 <b>${nGt}</b> 個 · ${f4(p.speed && p.speed.ms_per_image)} ms/img`
+    + ` · coral = 預測、綠虛線 = GT，hover 看 class/conf/IoU`;
+}
+
+// 一條龍跑到 s08 就自己把畫面切過去 —— 沒有這段，學生按完那顆按鈕會停在縮圖牆，
+// 以為評分沒跑（四張圖其實早就畫好了，只是在另一個 tab）。
+// ⚠️ 走的是 loadEval()（和「載入 s08 評分」鈕同一支），不是只載推論牆：
+// `eval.verdict` 事件只帶 {verdict, checks, delta, significant, anchor_ok}（契約 §4），
+// mAP50-95 / 95% CI / ds 指紋 / train_id 只有 REST 的 /charts 與 /verdict 有。
+// 少了這一步，一鍵跑完的裁決卡整排是「—」，台上要再手動按一次鈕才看得到主角數字。
+async function autoShowEval(runId){
+  if (!RUN || runId !== RUN) return;              // 別的 run 的裁決不准搶畫面（同 evalOwns 的理由）
+  showView('eval');
+  logLine('s08 完成 → 自動切到評分圖表，載入 /charts ・ /verdict ・ valid 推論圖牆');
+  await loadEval(runId);                          // 內含 loadPredictions(valid)，不要再載一次
+}
+
+// ---------- 載入（REST；事件到得了的時候走同一組 render） ----------
+async function loadPredictions(runId, split){
+  const first = await getJSON(`/api/v1/eval/${runId}/predictions?split=${split}&offset=0&limit=200`);
+  const results = (first.results||[]).slice();
+  for (const off of pagePlan(first.total||0, 200).slice(1)){
+    const page = await getJSON(`/api/v1/eval/${runId}/predictions?split=${split}&offset=${off}&limit=200`);
+    results.push(...(page.results||[]));
+  }
+  EVAL.pred = {split, results, speed:first.speed, total:first.total};
+  drawPredWall();
+}
+async function loadEval(runId){
+  if (!runId) return showErr({code:'NO_RUN_ID', detail:'請先填 run id（例 r30），或先跑完一個 run'});
+  // 換 run 先清場：舊 run 殘留的欄位（noise_floor、op_conf、per_class…）會被 Object.assign
+  // 留在新畫面上，變成「A 的數字掛在 B 名下」。resetData() 會清，但它不會在這條路徑上被呼叫。
+  Object.assign(EVAL, {run_id:runId, charts:null, verdict:null, pred:null, names:{},
+                       op_conf:null, noise_floor:null});
+  try{
+    const [c, v] = await Promise.all([getJSON(`/api/v1/eval/${runId}/charts`),
+                                      getJSON(`/api/v1/eval/${runId}/verdict`)]);
+    renderVerdict(v);                    // 先吃 verdict：noise_floor 從它來
+    mergeCharts(c);
+    $('#eval-src').textContent = `run ${runId} · train ${c.train_id} · split ${c.split}`
+      + ` · 評於 ${v.evaluated_at || '—'}`;
+    // s08 的燈：這一筆 eval 真的存在才點亮，而且只在「rail 上就是這個 run」時才動 ——
+    // 別的 run 在跑的時候點亮它，等於拿別人的評分冒充現場進度（狀態的權威仍是快照）。
+    if (!RUN || RUN === runId) setStage('s08', 'done');
+  }catch(e){ return showErr(e); }
+  try{ await loadPredictions(runId, EVAL.verdict.split === 'anchor' ? 'anchor' : 'valid'); }
+  catch(e){ logLine(`[預測載入失敗] ${e.code||''} ${e.detail||e.message||''}`); }
+}
+
+// s08 的四種事件只准畫「畫面現在這個 run」的證據。沒有這道守門，日常操作就會混兩個 run：
+// 按「開始」跑新 run（SSE 開著）→ 等訓練時在評分頁填上一輪的 run id 按「載入 s08 評分」做對照
+// → 新 run 的 eval.verdict 一到，Object.assign 會把新 run 的 verdict 蓋在舊 run 的指標、CI、
+// train_id 與 **provenance 指紋** 上，badge 翻綠，同一行還留著上一輪的 significance_why。
+// M4 的 verdict 面板就是要防這件事（顯示偽造的證據與 provenance），所以守數字不能只守燈。
+function evalOwns(ev, dup){
+  if (EVAL.run_id && ev.run_id !== EVAL.run_id){
+    if (!dup) logLine(`[忽略] ${ev.type} 屬於 ${ev.run_id}，畫面目前是 ${EVAL.run_id}`
+                      + `（要看它就在評分頁填 ${ev.run_id} 按「載入 s08 評分」）`);
+    return false;
+  }
+  if (!EVAL.run_id) EVAL.run_id = ev.run_id;       // 現場第一包 s08 事件認領這個畫面
+  return true;
+}
+
+// ---------- 事件 reducer（唯一入口；新增 type 只要在這裡加一個 case） ----------
+function applyEvent(ev){
+  if (!ev || ev.v !== 1){ logLine(`[忽略] 不認識的契約版本 v=${ev && ev.v}`); return; }
+  // 心跳（契約 §5.4）：15 秒一框、沒有 seq、只為了讓 45 秒看門狗知道線還活著。
+  // 它不是事件，不進 log 也不動 SEEN。
+  if (ev.type === 'heartbeat') return;
+  const dup = ev.seq <= SEEN;                 // 重播邊界必定重疊一筆，這是協議允許的
+  if (dup && !KEYED.has(ev.type)) return;     // 一次性事件靠 seq 去重（契約 §6）
+  if (ev.text && !dup) logLine(ev.text);      // text 是後端格式化好的，渲染器一行不改
+  if (ev.stage && $('#pill-'+ev.stage) && $('#pill-'+ev.stage).classList.contains('pending'))
+    setStage(ev.stage, 'running');
+
+  const d = ev.data || {};
+  switch (ev.type){
+    case 'run.created':
+      DS = d.ds_id || DS;
+      if (d.stages) drawRail(d.stages);
+      break;
+    case 'ds.total':
+      PROG.total = d.total; updateProgress();
+      $('#src').textContent = `來源 ${d.source} · ${d.total} 張`;
+      break;
+    case 'ds.image':
+      upsertImage(d);
+      $('#empty').hidden = true;
+      PROG.loaded = Math.max(PROG.loaded, IMAGES.length);
+      renderStats(); updateProgress();
+      break;
+    case 'ds.progress':
+      PROG.loaded = Math.max(PROG.loaded, d.loaded);   // 允許亂序，不准倒退
+      PROG.total  = d.total || PROG.total;
+      updateProgress();
+      // 契約 §7.1：第 201 筆起改送游標，早期縮圖要靠 REST 快照補，不靠 replay。
+      // M1 是 120 張走不到這條分支，但它現在就要在，否則 M8 的 409 張當天才爆。
+      if (PROG.loaded - IMAGES.length >= 50 || (PROG.loaded===PROG.total && IMAGES.length<PROG.total))
+        fetchImages();
+      break;
+    case 'ds.split':
+      // s04 指派完了就去補一次快照：卡片的 split **只有 REST 快照有**（事件的
+      // `ds.image.split` 永遠是 null，s04 不會補發 120 筆）。不補的話側欄寫 48/12/40、
+      // 同一頁的卡片全部標「—」、篩選「未指派」篩出 120 張 —— 同一個畫面對同一件事
+      // 給兩個答案，而這正是加 `split` 欄位當初要修掉的那個謊。
+      if (!dup) fetchImages();
+      break;
+    case 'label.mask': {
+      // 存在獨立 Map（跟 BOXES 同一種待遇）：bus 只把 ds.image 砍在 200 筆，label.* 不砍，
+      // 所以第 201 張之後一定會先收到 label.* 才收到那張圖。寫在 im 上就會整包丟掉，
+      // 而 REST 快照沒有 defect_ratio / n_components，之後沒有任何管道補得回來。
+      MASKS.set(d.image_id, {n_components:d.n_components, defect_ratio:d.defect_ratio});
+      const im = IMAGES[IDX.get(d.image_id)];
+      if (im) syncCard(im);
+      break;
+    }
+    case 'label.bbox': {
+      BOXES.set(d.image_id, d.boxes || []);            // 整包取代，不是 append
+      const im = IMAGES[IDX.get(d.image_id)];
+      if (im){
+        im.counts = {unclassified: (d.boxes||[]).length};
+        syncCard(im); renderStats();
+      }
+      break;
+    }
+    case 'label.lowconf': {
+      const im = IMAGES[IDX.get(d.image_id)];
+      if (im){ im.lowconf = d.conf; syncCard(im); }
+      break;
+    }
+    case 'label.anchor_iou': drawIou(d); break;
+    case 'class.table.frozen':
+      // 降級要在 rail 上看得見：LLM 沒命名成功時 s02 還是綠色的「完成」、預算條 0 calls，
+      // 台上讀起來像「免費就完成了」，而不是「s02 的教學主張（AI 自己命名）沒有發生」。
+      if (d.naming === 'fallback'){
+        DEGRADED.set(ev.stage, '完成・機械命名');
+        setStage(ev.stage, 'done');
+        if (!dup) showNote(`LLM 命名降級成機械命名（${d.naming_error || '原因不明'}）——`
+          + ` ${(d.names||[]).join(' / ')} 這些名字來自幾何規則，不是 LLM`);
+      } else {
+        DEGRADED.delete(ev.stage);
+      }
+      if (!dup){ CLASSES_FOR = `${DS}:${d.version}`; fetchClasses(); }   // 類別分佈的來源
+      break;
+    // ---- s08（M4）：圖表與裁決都只吃後端算好的 JSON，前端一個指標都不自己算 ----
+    case 'eval.noise_floor':
+      if (!evalOwns(ev, dup)) break;
+      EVAL.noise_floor = d.noise_floor; renderCharts();
+      break;
+    case 'eval.leakage': break;                    // text 已經印進 #log，這裡不再拼字
+    case 'eval.perclass':
+      if (!evalOwns(ev, dup)) break;
+      mergePerClass(d); break;                     // 契約 §6：(run,cls) upsert
+    case 'charts.series':
+      if (!evalOwns(ev, dup)) break;
+      mergeCharts(d); break;
+    case 'eval.verdict':
+      if (!evalOwns(ev, dup)) break;
+      renderVerdict(Object.assign({run_id:ev.run_id}, d));
+      if (!dup) autoShowEval(ev.run_id);          // 一條龍跑到 s08：圖表自己出現，不用手動切
+      break;
+    case 'test.image':
+      // sealed-test 的逐張預測。推論圖牆只用 valid split —— 封印的東西不進畫面。
+      if (!dup) logLine(`[sealed-test] ${d.image_id} 不進推論圖牆（圖牆只用 valid）`);
+      break;
+    case 'stage.failed':
+      setStage(d.stage, 'failed');
+      showErr({code:'STAGE_FAILED', detail:`${d.stage}：${d.detail}`});
+      break;
+    case 'stop':
+      logLine(`stop → ${d.reason}`);
+      // 標註天花板不足 = driver 照 DESIGN 的 `label_ceiling` 主動停在 s03（契約 §9）。
+      // 這不是壞掉（所以不走紅色 showErr），但畫面必須講清楚「停在 s03、s04 之後是 skipped」，
+      // 不然學生看到的是一條 status:done 卻只跑了三格的 run。
+      if (d.reason === 'label_ceiling'){
+        DEGRADED.set('s03', '停・天花板不足');
+        setStage('s03', 'done');
+        if (!dup) showNote(`停在 s03：${d.detail || '標註天花板低於門檻'}`);
+      }
+      break;
+    default:
+      // 還沒有前端 case 的 type：印一行就好，不要爆掉整條流。
+      // 但**有 text 的不要再印一次** —— s02/s04–s08 的事件幾乎都帶後端格式化好的 text，
+      // 兩行一起印的話，一條龍跑完的 log 有一半是「[未處理]」，畫面看起來像壞了。
+      if (!dup && !ev.text) logLine(`[未處理] ${ev.type}`);
+  }
+  SEEN = Math.max(SEEN, ev.seq);
+}
+
+// ---------- REST ----------
+async function getJSON(path){
+  const r = await fetch(API+path);
+  const j = await r.json().catch(()=>({code:'BAD_JSON', detail:'回應不是 JSON'}));
+  if (!r.ok) throw j;
+  return j;
+}
+function pagePlan(total, limit){          // 分頁 offset 清單（純函式，selftest 蓋它）
+  const out = [];
+  for (let o=0; o<Math.max(total,1); o+=limit) out.push(o);
+  return out;
+}
+// 快照（契約 §8.7，Roboflow search 相容形狀）→ 事件（§4 的 ds.image）的欄位翻譯。
+// 同一件事實有兩個形狀：事件走 counts、REST 走 annotations.classes。少了這層映射，
+// 凡是從快照進來的卡片全部顯示「未標註」、0 個框、類別分佈空白，而且不會有任何錯誤訊息。
+// 兩條路進來的同一張圖必須長出**同一個 cls**，否則篩選與分層抽樣會分家：`unclassified` 是
+// 「有框但還沒有類別」的佔位（不是類別名）所以排掉，真的類別名（human 那條路的 'Donut'）要填。
+function fromSnapshot(r){
+  const classes = (r.annotations && r.annotations.classes) || {};
+  const counts = {};
+  for (const k in classes) if (classes[k] > 0) counts[k] = classes[k];
+  // 沒有框就整個不帶 counts：可能只是 labels.json 還沒落盤（每 20 張一次），
+  // 回一個空物件會把事件已經算好的框數洗掉。
+  // `cls` 要跟著長出來：`labels:"human"` 那條路 409 張的前 200 張從事件進來帶
+  // `cls:['Donut']`，第 201 張起只走快照 —— 不補這一行，後面 209 張會被篩選器當成沒類別。
+  // `unclassified` 是「有框但還沒有類別」的佔位，不是類別名，所以排掉。
+  const cls = Object.keys(counts).filter(k => k !== 'unclassified').sort();
+  return Object.keys(counts).length ? Object.assign({}, r, {counts}, cls.length ? {cls} : {}) : r;
+}
+async function fetchImages(){             // 影像快照：重連與 200 筆游標之後補早期縮圖的唯一來源
+  if (!DS) return;
+  try{
+    const first = await getJSON(`/api/v1/datasets/${DS}/images?offset=0&limit=200`);
+    (first.results||[]).forEach(r=>upsertImage(fromSnapshot(r)));
+    for (const off of pagePlan(first.total||0, 200).slice(1)){
+      const page = await getJSON(`/api/v1/datasets/${DS}/images?offset=${off}&limit=200`);
+      (page.results||[]).forEach(r=>upsertImage(fromSnapshot(r)));
+    }
+    renderStats();
+  }catch(e){ logLine(`[影像快照失敗] ${e.code||''} ${e.detail||e.message||''}`); }
+}
+function applySnapshot(s){
+  STATUS = s.status; DS = s.ds_id || DS;
+  if (s.stages) setStages(s.stages);
+  if (s.counts){ PROG.total = s.counts.total ?? PROG.total;
+                 PROG.loaded = Math.max(PROG.loaded, s.counts.loaded||0); updateProgress(); }
+  setBudget(s.budget);
+  // 契約 §8.3 的 split / recipe：側欄那三塊的唯一真相。`in` 而不是 `||` —— 這支也吃
+  // startRun 那個只有五個欄位的部份快照，用 || 的話舊 run 的數字會留在畫面上。
+  if ('split' in s) SPLIT = s.split;
+  if ('recipe' in s) RECIPE = s.recipe;
+  renderSplit(); renderRecipe(); renderArtifacts(s);
+  const key = s.class_table_version ? `${DS}:${s.class_table_version}` : null;
+  if (key && key !== CLASSES_FOR){ CLASSES_FOR = key; fetchClasses(); }
+  $('#runinfo').textContent = `run ${s.run_id} · ${s.status} · ds ${s.ds_id ?? '—'}`
+    + ` · class_table ${s.class_table_version ?? '未分類'} · server seq ${s.last_seq}`;
+  const running = s.status === 'running';
+  $('#run').disabled = running; $('#cancel').disabled = !running;
+  if (!running) teardown();
+}
+
+// ---------- SSE ----------
+function openStream(){
+  closeStream();
+  // 一條流、一個 handler：統一 onmessage → switch(ev.type)。
+  // 不用 addEventListener(type) 綁 20 種 —— 新增 type 就漏接（契約裁決 A/B）。
+  ES = new EventSource(`${API}/api/v1/runs/${RUN}/events?since=${SEEN}`);
+  LAST_MSG = Date.now();
+  $('#conn').textContent = `SSE：連線中 since=${SEEN}`;
+  ES.onopen = () => { $('#conn').textContent = 'SSE：已連線'; };
+  ES.onmessage = e => {
+    LAST_MSG = Date.now();
+    let ev; try{ ev = JSON.parse(e.data); }catch{ return logLine('[SSE] 壞掉的 JSON，略過一框'); }
+    applyEvent(ev);
+  };
+  ES.onerror = () => { $('#conn').textContent = 'SSE：斷線（自動重連，帶 Last-Event-ID）'; };
+}
+function closeStream(){ if (ES){ ES.close(); ES = null; } }
+
+// 45 秒沒收到任何「資料框」就自救重連。
+// ⚠️ 瀏覽器不會把 `: ping` 註解行交給 JS，所以這裡量的是 data 框不是位元組；
+//    誤觸發的代價只是一次帶 since 的重連（server 回零框），比半開連線卡死便宜。
+function armWatch(){
+  clearInterval(WATCH);
+  WATCH = setInterval(()=>{
+    if (ES && Date.now()-LAST_MSG > 45000){
+      logLine('[SSE] 45 秒沒有任何事件，主動 close 重開');
+      resync();
+    }
+  }, 5000);
+}
+async function resync(){                  // 契約 §7.3 寫死的重連順序：快照 → 影像 → 串流
+  closeStream();
+  try{ applySnapshot(await getJSON(`/api/v1/runs/${RUN}`)); }
+  catch(e){ return showErr(e); }
+  if (STATUS !== 'running') return;
+  await fetchImages();
+  openStream();
+}
+function startPoll(){
+  clearInterval(POLL);
+  // 快照是 stage 狀態的權威來源（前端不自己推 done）；SSE 全掛也還看得到現況。
+  POLL = setInterval(async()=>{
+    try{ applySnapshot(await getJSON(`/api/v1/runs/${RUN}`)); }catch(e){ /* 下一輪再試 */ }
+  }, 3000);
+}
+function teardown(){ closeStream(); clearInterval(POLL); clearInterval(WATCH);
+  $('#conn').textContent = `SSE：已關閉（run ${STATUS}）`; }
+
+// ---------- 那一顆按鈕 ----------
+function resetData(){
+  IMAGES = []; IDX.clear(); CARDS.clear(); BOXES.clear(); MASKS.clear(); SELECTED.clear(); lastIdx = null;
+  SEEN = 0; PROG = {loaded:0,total:0};
+  // 上一輪的 split / class 表 / 配方留在畫面上，下一輪就會有人拿舊數字當新證據
+  SPLIT = null; RECIPE = null; CLASSES = null; CLASSES_FOR = null;
+  renderRecipe(); renderDist(); renderArtifacts({});
+  $('#wall').querySelectorAll('.card').forEach(el=>el.remove());
+  $('#empty').hidden = false;
+  $('#iou-hist').innerHTML = ''; $('#iou-txt').textContent = '尚未量測 auto bbox 對 GT 的 IoU。';
+  // s08 的東西一起清：上一輪的裁決留在畫面上，下一輪就會有人拿舊 verdict 當新證據
+  EVAL.run_id = null; EVAL.charts = null; EVAL.verdict = null; EVAL.pred = null;
+  EVAL.names = {}; EVAL.op_conf = null; EVAL.noise_floor = null;
+  $('#vbadge').hidden = true; $('#vpanel').hidden = true;
+  ['#chart-curves','#chart-pr','#chart-cm','#chart-perclass'].forEach(s=>{ $(s).innerHTML=''; });
+  ['#lg-curves','#lg-pr','#lg-pc'].forEach(s=>{ $(s).innerHTML=''; });
+  $('#verdict-num').textContent = '尚未評分。跑完 s07 之後打 POST /api/v1/eval，或在上面填 run id 載入既有結果。';
+  setEvolveBlocked(false, 'verdict 未知，先評分。');
+  drawPredWall();
+  updateProgress(); renderStats();
+}
+async function startRun(){
+  clearErr();
+  const src = $('#source').value;
+  const body = {mode:'oneshot', source:src, preset:$('#preset').value,
+                limit:+$('#limit').value, seed:+$('#run-seed').value};
+  if (src === 'roboflow'){
+    body.workspace = $('#rf-ws').value.trim();
+    body.project   = $('#rf-pj').value.trim();
+    body.version   = +$('#rf-ver').value;
+    // 人工框那條路（labels:"human"）目前停在 s02 的 409 CLASS_TABLE_SCHEMA_CONFLICT
+    // （🔒 class_table schema 是照 KMeans 命名凍的，nc∈[3,6] + 固定詞彙表，
+    //  WM-811K 的 nc:1 names:['Donut'] 三條全踩）。按鈕走 auto：真圖 + 自己生框，跑得完。
+    body.labels = 'auto';
+    $('#ticker').textContent = '正在向 Roboflow 取資料集…第一次要下載約 8.8 MB（約 4 秒）';
+  }
+  $('#run').disabled = true;
+  let j;
+  try{
+    const r = await fetch(API+'/api/v1/runs', {method:'POST',
+      headers:{'content-type':'application/json'}, body:JSON.stringify(body)});
+    j = await r.json();
+    if (!r.ok) throw j;
+  }catch(e){
+    // ⚠️ resetData() 一定要在這之後才跑：開 run 失敗（501 roboflow / 400 limit / 409 已有 run）
+    // 時先清畫面的話，跑完一整條龍的縮圖牆、四張圖、裁決卡會全部歸零，而 rail 還留著
+    // 「s01–s08 全部完成」——「八格全綠 + 一片空白」，而且縮圖牆沒有任何 UI 入口能重載。
+    $('#run').disabled = false;
+    showErr(e);
+    if (e && e.code === 'RUN_IN_FLIGHT' && e.run_id) await adoptRun(e.run_id);
+    return;
+  }
+  resetData();
+  $('#log').textContent = '';
+
+  RUN = j.run_id; DS = j.ds_id; STATUS = j.status; SEEN = 0;
+  drawRail(j.stages);                     // 回應裡就有骨架，先畫出來再等事件
+  applySnapshot({run_id:j.run_id, status:j.status, ds_id:j.ds_id, last_seq:0,
+                 class_table_version:j.class_table_version});
+  // 指令那一行由後端的 run.created.text 印（契約：text 給 #log 直接印，前端不再拼字）
+  logLine(`run ${RUN} / dataset ${DS} · events ${j.events_url}`);
+  $('#cancel').disabled = false;
+  remember(RUN);
+  openStream(); armWatch(); startPoll();
+}
+
+// 一次只准一個 run（契約 §8.1），所以「還在跑的那一條」是可以認回來的。
+// 沒有這段的話：重整頁面 → RUN=null → 中止鈕 disabled、SSE 不重連，而 POST /runs 會回
+// 409 叫你先 cancel —— 畫面同時叫使用者 cancel 又把 cancel 拿走。
+const RUN_KEY = 'cv-console:run';
+function remember(id){ try{ localStorage.setItem(RUN_KEY, id || ''); }catch{ /* 無痕模式 */ } }
+function remembered(){ try{ return localStorage.getItem(RUN_KEY); }catch{ return null; } }
+async function adoptRun(runId){
+  if (!runId) return false;
+  let snap;
+  try{ snap = await getJSON(`/api/v1/runs/${runId}`); }catch{ return false; }
+  if (!['queued','running'].includes(snap.status)) return false;
+  resetData();
+  RUN = runId; DS = snap.ds_id; SEEN = 0;
+  applySnapshot(snap);                    // 這支會把「開始/中止」兩顆鈕的 disabled 調對
+  await fetchImages();                    // 契約 §7.3 的重連順序：快照 → 影像 → 串流
+  remember(runId);
+  logLine(`接回還在跑的 run ${runId}（重整頁面沒有把它弄丟）`);
+  openStream(); armWatch(); startPoll();
+  return true;
+}
+async function cancelRun(){
+  if (!RUN) return;
+  try{
+    const r = await fetch(API+`/api/v1/runs/${RUN}/cancel`, {method:'POST'});
+    const j = await r.json();
+    if (!r.ok) throw j;
+    logLine(`cancel → ${j.status} @seq ${j.stop_seq}`);
+  }catch(e){ showErr(e); }
+}
+
+// ---------- 點 bbox 看「用了哪條規則」 ----------
+function showTip(e, html){
+  const t = $('#tip'); t.innerHTML = html; t.hidden = false;
+  t.style.left = Math.min(e.clientX+12, innerWidth-320)+'px';
+  t.style.top  = Math.min(e.clientY+12, innerHeight-90)+'px';
+}
+document.addEventListener('click', e=>{
+  $('#tip').hidden = true;
+  if (!$('#vpanel').contains(e.target)) $('#vpanel').hidden = true;   // 點空白處收起 check 清單
+});
+$('#wall').addEventListener('click', e=>{
+  const r = e.target.closest && e.target.closest('rect[data-img]');
+  if (!r) return;
+  e.stopPropagation();                      // capture 階段攔下，不要連帶選取整張卡
+  const b = (BOXES.get(r.dataset.img)||[])[+r.dataset.i];
+  if (!b) return;
+  showTip(e, `${RULES[b.rule] || b.rule}<br>cls ${b.cls < 0 ? '未分類（M1 沒有 class 表）' : b.cls}`
+           + ` · conf ${(+b.conf).toFixed(2)}<br>`
+           + `cx ${b.cx.toFixed(3)} cy ${b.cy.toFixed(3)} w ${b.w.toFixed(3)} h ${b.h.toFixed(3)}`);
+  setTimeout(()=>{ $('#tip').hidden = false; }, 0);
+}, true);
+
+// ---------- actions（沿用舊前端） ----------
+function assign(split){
+  // s04 之後 split 的真相在後端（側欄那三個數字就是它）。手動指派只會讓卡片上的標籤
+  // 和側欄對不上 —— 工具列的鈕已經 disabled，但鍵盤 1/2/3/0 進得來，所以擋在這裡。
+  if (SPLIT || !SELECTED.size){ return; }
+  IMAGES.forEach(i => { if (SELECTED.has(i.id)) i.split = split || null; });
+  SELECTED.clear(); render();
+}
+
+// ---------- 推論圖牆的 hover：class + conf + IoU ----------
+$('#pwall').addEventListener('mouseover', e=>{
+  const r = e.target.closest && e.target.closest('rect[data-kind]');
+  if (!r) return;
+  const cls = +r.dataset.cls, name = EVAL.names[cls] ?? `cls ${cls}`;
+  showTip(e, r.dataset.kind === 'gt'
+    ? `GT（綠色虛線）<br>${esc(name)}<br>這張圖 IoU vs GT ${f4(r.dataset.iou)}`
+    : `預測（coral）<br>${esc(name)} · conf ${(+r.dataset.conf).toFixed(4)}<br>`
+      + `作業點 ${f4(EVAL.op_conf)}${+r.dataset.conf < EVAL.op_conf ? '（低於作業點）' : ''}<br>`
+      + `這張圖 IoU vs GT ${f4(r.dataset.iou)}`);
+});
+$('#pwall').addEventListener('mouseout', ()=>{ $('#tip').hidden = true; });
+
+// ---------- wire ----------
+function showView(v){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.view===v));
+  ['data','eval','pred'].forEach(k => $('#view-'+k).hidden = (k !== v));
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = ()=> showView(t.dataset.view));
+$('#vbadge').onclick = e => { e.stopPropagation(); $('#vpanel').hidden = !$('#vpanel').hidden; };
+$('#load-eval').onclick = ()=> loadEval(($('#eval-run').value || RUN || '').trim());
+$('#show-all-boxes').onchange = drawPredWall;
+$('#evolve').onclick = ()=>{
+  if (EVOLVE_BLOCKED) return showErr({code:'VERDICT_INVALID',
+    detail:'verdict invalid —— 這一輪不得當證據，進化下一輪已擋住（DESIGN s08）'});
+};
+$('#run').onclick = startRun;
+$('#cancel').onclick = cancelRun;
+['#q','#fcls','#fsplit'].forEach(s=>$(s).addEventListener('input',render));
+$('#all').onclick = ()=>{ visible().forEach(i=>SELECTED.add(i.id)); render(); };
+$('#none').onclick = ()=>{ SELECTED.clear(); render(); };
+document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=()=>assign(b.dataset.assign));
+// 選 roboflow 才露出 workspace / project / version（永遠沒有 API key 欄位）。
+// 開頁時也跑一次：瀏覽器重整會還原 <select> 的選擇，只綁 onchange 的話會變成
+// 「source 是 roboflow，但那三個欄位看不到也改不了」。
+$('#source').onchange = () => { $('#rf').hidden = $('#source').value !== 'roboflow'; };
+$('#source').onchange();
+// 「照類別分層抽樣」與兩顆匯出鈕已經拿掉：s04 真的在後端分層並落檔了
+// （02-dataset/data.yaml + splits.json），前端再分一次只會產出一份伺服器沒有的 split。
+// `stratifiedSplit()` 本人留著 —— 契約 §11 的 assert 2 要拿它跟 Python 版逐筆比對。
+document.addEventListener('keydown', e=>{
+  if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  const m = {'1':'train','2':'valid','3':'test','0':''};
+  if (e.key in m) assign(m[e.key]);
+});
+drawRail(STAGES.map(([id,name,owner])=>({id,name,owner,status: LIVE.has(id)?'pending':'skipped'})));
+// 開頁先看有沒有還在跑的 run 可以接回來（?selftest=1 不要碰網路以外的狀態）
+if (!new URLSearchParams(location.search).get('selftest')) adoptRun(remembered());
+
+// ---------- self-check：?selftest=1（9 → 18 → M4 = 22 → M4 修 = 26 → M5 一條龍 = 28
+//              → M5 修 = 32 → 側欄說謊修正 + roboflow = 37
+//              → roboflow 安全性修正（跳脫 ×2 / split 值域 / 天花板閘門）= 41 條） ----------
+if (new URLSearchParams(location.search).get('selftest')){
+  $('#app').hidden = true; const out = $('#selftest'); out.hidden = false;
+  const lines = []; let fail = 0;
+  const ok = (name, cond) => { lines.push((cond?'PASS  ':'FAIL  ')+name); if(!cond) fail++; };
+  const mk = (n, cls) => Array.from({length:n},(_,i)=>({id:cls+i, cls:[cls]}));
+  const items = [...mk(10,'a'), ...mk(7,'b'), ...mk(1,'c')];   // 18 張，含只有 1 張的邊界類別
+
+  // --- 1..9：分層抽樣（原有九條，一字未改） ---
+  const m = stratifiedSplit(items, {train:70,valid:20,test:10}, 42);
+  ok('每張都被指派到剛好一個 split', items.every(i=>['train','valid','test'].includes(m[i.id])));
+  ok('總數守恆（18）', Object.keys(m).length === 18);
+  const cnt = s => items.filter(i=>m[i.id]===s).length;
+  ok(`train 約 70%（得到 ${cnt('train')}/18）`, Math.abs(cnt('train')-12.6) <= 1.5);
+  const aTrain = items.filter(i=>i.cls[0]==='a' && m[i.id]==='train').length;
+  ok(`分層：a 類 10 張裡 train 應 ~7（得到 ${aTrain}）`, Math.abs(aTrain-7) <= 1);
+  ok('只有 1 張的類別也有去處', ['train','valid','test'].includes(m['c0']));
+
+  const m2 = stratifiedSplit(items, {train:70,valid:20,test:10}, 42);
+  ok('同 seed → 完全相同結果', JSON.stringify(m)===JSON.stringify(m2));
+  const m3 = stratifiedSplit(items, {train:70,valid:20,test:10}, 43);
+  ok('不同 seed → 結果不同', JSON.stringify(m)!==JSON.stringify(m3));
+
+  const m4 = stratifiedSplit(items, {train:1,valid:0,test:0}, 1);
+  ok('比例 100/0/0 → 全進 train', items.every(i=>m4[i.id]==='train'));
+  let threw=false; try{ stratifiedSplit(items,{train:0,valid:0,test:0},1) }catch{ threw=true }
+  ok('比例全 0 → 丟錯而不是靜默壞掉', threw);
+
+  // --- 10：M1 形狀（120 張、全部未分類）同 seed 兩次逐筆相同 ---
+  // selfcheck.py 的 assert 2 會拿同一套規則的 Python 版比對，所以這裡要蓋「無類別」那條路徑
+  const m1items = Array.from({length:120},(_,i)=>({id:`demo${String(i+1).padStart(4,'0')}`, cls:[]}));
+  const s1 = stratifiedSplit(m1items, {train:70,valid:20,test:10}, 42);
+  const s2 = stratifiedSplit(m1items, {train:70,valid:20,test:10}, 42);
+  ok('stratifiedSplit：M1 的 120 張同 seed 兩次逐筆相同',
+     m1items.every(i=>s1[i.id]===s2[i.id]) && Object.keys(s1).length===120);
+
+  // --- 11：ds.image 重放兩次，卡片數不變（冪等，契約 §6） ---
+  const img = (n,seq)=>({v:1,seq,ts:'',run_id:'r1',stage:'s01',type:'ds.image',actor:'dataset-truth',
+    data:{id:`demo000${n}`,name:`wafer_000${n}.png`,url:`/api/v1/images/demo000${n}`,
+          cls:[],counts:{},split:null}});
+  resetData();
+  const batch = [img(1,1), img(2,2), img(3,3)];
+  batch.forEach(applyEvent); const after1 = IMAGES.length;
+  batch.forEach(applyEvent); const after2 = IMAGES.length;
+  const domCards = $('#wall').querySelectorAll('.card').length;
+  ok(`同一批 ds.image 重放兩次，卡片數不變（${after1} → ${after2}，DOM ${domCards}）`,
+     after1===3 && after2===3 && domCards===3);
+
+  // --- 12：label.bbox 整包取代，不是 append ---
+  const bx = seq => ({v:1,seq,ts:'',run_id:'r1',stage:'s03',type:'label.bbox',actor:'dataset-truth',
+    data:{image_id:'demo0001',boxes:[
+      {cls:-1,cx:.4,cy:.5,w:.2,h:.1,conf:1,rule:'cc_bbox'},
+      {cls:-1,cx:.7,cy:.3,w:.1,h:.1,conf:.4,rule:'cc_bbox'}]}});
+  applyEvent(bx(4)); applyEvent(bx(5));
+  const rects = CARDS.get('demo0001').querySelectorAll('.ov rect').length;
+  ok(`label.bbox 重放 → 框數不變（${rects}，不是 4）`, BOXES.get('demo0001').length===2 && rects===2);
+
+  // --- 13：一次性事件靠 seq 去重，且 seq 不倒退 ---
+  const total = (n,seq)=>({v:1,seq,ts:'',run_id:'r1',stage:'s01',type:'ds.total',actor:'dataset-truth',
+    data:{total:n,source:'demo'}});
+  applyEvent(total(120,10)); const seqHigh = SEEN;
+  applyEvent(total(999,6));                 // 亂序的舊框：必須被丟掉
+  ok(`舊 seq 的一次性事件被丟掉且 SEEN 不倒退（${seqHigh} → ${SEEN}）`,
+     seqHigh===10 && SEEN===10 && PROG.total===120);
+
+  // --- 14：200 筆游標之後的分頁計畫（M1 用不到，M8 的 409 張會用到） ---
+  ok('pagePlan(120,200)=[0]；pagePlan(409,200)=[0,200,400]',
+     JSON.stringify(pagePlan(120,200))==='[0]' && JSON.stringify(pagePlan(409,200))==='[0,200,400]');
+
+  // --- 15：不認識的 type / 契約版本不會炸掉整條流 ---
+  //    （charts.series 在 M4 已經有 case 了，所以這裡順手也餵一包空 data：
+  //      有 case 的 type 收到空 data 同樣不准炸。未知的那一個換成 M6 的 sweep.trial。）
+  let crashed = false;
+  try{
+    applyEvent({v:1,seq:98,ts:'',run_id:'r1',stage:'s08',type:'charts.series',actor:'metric-auditor',data:{}});
+    applyEvent({v:1,seq:99,ts:'',run_id:'r1',stage:'s07',type:'sweep.trial',actor:'training-engineer',data:{}});
+    applyEvent({v:2,seq:100,ts:'',run_id:'r1',stage:'s01',type:'ds.total',actor:'dataset-truth',data:{}});
+  }catch{ crashed = true; }
+  ok('未知 type 與 v!=1 只記一行、不炸掉 reducer', !crashed && SEEN===99);
+
+  // --- 16：bbox 疊圖與影像同一個座標基準（blocker 回歸測） ---
+  // .ov 用 viewBox 0 0 100 100 + preserveAspectRatio="none" 攤滿整個卡槽，所以卡槽的長寬比
+  // 必須等於影像的長寬比（契約 §11：256×256 = 1:1）。不相等時 object-fit:cover 會裁掉影像，
+  // 框卻照畫在卡槽上 —— 框的高度變成正確值的 (影像比/卡槽比) 倍，而 IoU 數字還是漂亮的 1.000。
+  const probe = document.createElement('div'); probe.className = 'thumb';
+  document.body.appendChild(probe);
+  const ar = getComputedStyle(probe).aspectRatio.replace(/\s/g,'');
+  probe.remove();
+  const ovPav = document.createElement('div');
+  ovPav.innerHTML = '<svg class="ov" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>';
+  const stretched = ovPav.querySelector('.ov').getAttribute('preserveAspectRatio') === 'none';
+  ok(`.thumb 長寬比 ${ar} == 影像 1:1（疊圖層攤滿卡槽：${stretched}）`,
+     stretched && (ar === '1' || ar === '1/1'));
+
+  // --- 17：label.mask 比 ds.image 早到也不會掉（bus 只砍 ds.image 到 200 筆，label.* 不砍） ---
+  resetData();
+  const mask = seq => ({v:1,seq,ts:'',run_id:'r1',stage:'s03',type:'label.mask',actor:'dataset-truth',
+    data:{image_id:'demo0201', defect_ratio:0.012, n_components:3}});
+  applyEvent(mask(1));                                   // 這張卡此刻還不存在
+  applyEvent({v:1,seq:2,ts:'',run_id:'r1',stage:'s01',type:'ds.image',actor:'dataset-truth',
+    data:{id:'demo0201',name:'wafer_0201.png',url:'/api/v1/images/demo0201',
+          cls:[],counts:{},split:null}});               // 圖後到（第 201 張走的就是這條路）
+  const st = CARDS.get('demo0201').querySelector('.st').textContent;
+  ok(`label.mask 早到、ds.image 後到，遮罩資訊還在（「${st}」）`, st.includes('3 分量'));
+
+  // --- 18：§8.7 快照的 annotations 有人消費（不然快照補進來的卡片全部「未標註」） ---
+  const snap = fromSnapshot({id:'demo0001', name:'wafer_0001.png', url:'/x',
+                             annotations:{count:2, classes:{unclassified:2}}});
+  const snapEmpty = fromSnapshot({id:'demo0002', annotations:{count:0, classes:{unclassified:0}}});
+  // human 那條路（roboflow 409 張）：第 201 張起只走快照，cls 沒跟著長出來的話
+  // 後面 209 張會被篩選器當成「沒類別」，和從事件進來的前 200 張分家。
+  const snapCls = fromSnapshot({id:'wm0301', annotations:{count:1, classes:{Donut:1}}});
+  ok('fromSnapshot：annotations.classes → counts + cls，0 框時不帶 counts 洗掉事件算好的數字',
+     snap.counts && snap.counts.unclassified === 2 && snap.cls === undefined
+     && snapEmpty.counts === undefined
+     && JSON.stringify(snapCls.cls) === '["Donut"]' && snapCls.counts.Donut === 1);
+
+  // --- 19（M4）：推論框與影像逐像素對位，差 > 1px 就 FAIL ---
+  // 第 16 條守的是 CSS 比例，這一條是真的量：用 getScreenCTM 把 .ov 的 user 座標換算成螢幕
+  // 像素，再跟「影像內容在 object-fit:cover 之後實際落在哪」比。卡槽比例一被改壞（M1 那個
+  // blocker：4/3 的槽裝 1:1 的圖），影像內容會上下溢出，這兩組數字就對不上。
+  const harness = document.createElement('div');
+  harness.style.cssText = 'position:absolute;left:-10000px;top:0;width:200px';
+  document.body.appendChild(harness);
+  const prec = {image_id:'demo0064', name:'wafer_0064.png', url:'',
+                boxes:[{cls:5, cx:0.5, cy:0.25, w:0.5, h:0.5, conf:1}],
+                gt_boxes:[{cls:5, cx:0.5, cy:0.25, w:0.5, h:0.5}], iou_vs_gt:0.61};
+  const pcard = makePredCard(prec, 0.5, false);
+  harness.appendChild(pcard);
+  const ovSvg = pcard.querySelector('.ov'), imgBox = pcard.querySelector('.thumb').getBoundingClientRect();
+  const s2f = Math.max(imgBox.width/256, imgBox.height/256);      // 契約 §11：影像 256×256
+  const content = {left: imgBox.left + (imgBox.width - 256*s2f)/2,
+                   top:  imgBox.top  + (imgBox.height - 256*s2f)/2,
+                   w: 256*s2f, h: 256*s2f};
+  const ctm = ovSvg.getScreenCTM();
+  const at = (ux,uy)=>{ const p = ovSvg.createSVGPoint(); p.x=ux; p.y=uy; return p.matrixTransform(ctm); };
+  const tl = at(25, 0), br = at(75, 50);                          // 該框的左上與右下（0..100 user）
+  const worstPx = Math.max(
+    Math.abs(tl.x - (content.left + 0.25*content.w)), Math.abs(tl.y - (content.top + 0*content.h)),
+    Math.abs(br.x - (content.left + 0.75*content.w)), Math.abs(br.y - (content.top + 0.5*content.h)));
+  const nGtRect = pcard.querySelectorAll('.ov rect.gt').length;
+  ok(`推論框與影像逐像素對齊（worstDeltaPx ${worstPx.toFixed(2)} ≤ 1，GT 虛線框 ${nGtRect}）`,
+     worstPx <= 1 && nGtRect === 1);
+  harness.remove();
+
+  // --- 20（M4）：四張圖都有 noise floor 灰帶，且帶寬 == noise floor（尺度沒有畫錯） ---
+  EVAL.charts = {noise_floor:0.14792, op_conf:0.01575,
+    curves:[{epoch:1,train_box_loss:1.6,train_cls_loss:4.0,val_box_loss:.9,val_cls_loss:4.2,map5095:.0135},
+            {epoch:2,train_box_loss:1.4,train_cls_loss:3.2,val_box_loss:.8,val_cls_loss:4.0,map5095:.145}],
+    pr:[{cls:0,name:'center',support:1,points:[{r:0,p:1},{r:1,p:0}]}],
+    confusion:{labels:['center','background'],matrix:[[1,0],[0,1]],conf:0.01575,iou:0.45},
+    per_class:[{cls:0,name:'center',ap50:0.5,ci_lo:0.3,ci_hi:0.7,support:1}]};
+  EVAL.noise_floor = 0.14792; renderCharts();
+  const band = $('#chart-perclass .nf-band');
+  const bandW = band ? +band.getAttribute('width') : -1, bandX = band ? +band.getAttribute('x') : -1;
+  const expW = 0.14792*(PX1-PX0);
+  const allBands = ['#chart-curves','#chart-pr','#chart-cm','#chart-perclass']
+    .filter(s=>$(s).querySelector('.nf-band')).length;
+  ok(`四張圖都有 noise floor 灰帶（${allBands}/4），per-class 帶寬 ${bandW.toFixed(2)} == `
+     + `${expW.toFixed(2)} 且貼齊 x=0（${bandX.toFixed(2)} vs ${PX0}）`,
+     allBands === 4 && Math.abs(bandW-expW) <= 0.5 && Math.abs(bandX-PX0) <= 0.5);
+
+  // --- 21（M4）：verdict badge 三種狀態都渲染得出來，且只有 invalid 擋住進化路徑 ---
+  let three = true;
+  for (const v of ['trusted','suspect','invalid']){
+    renderVerdict({run_id:'rX', verdict:v, why:'測試', delta:0.5, significant:true,
+                   checks:[{name:'split_leakage',pass:true,detail:'id 重疊 0'},
+                           {name:'test_size_power',pass:false,detail:'valid 只有 12 張'}]});
+    const b = $('#vbadge');
+    three = three && !b.hidden && b.classList.contains(v)
+            && $('#vpanel').querySelectorAll('.chk').length === 2
+            && EVOLVE_BLOCKED === (v === 'invalid')
+            && $('#evolve').disabled === true;      // M6 之前這顆本來就不能按
+  }
+  ok('verdict badge 三態（trusted/suspect/invalid）都渲染得出來，只有 invalid 擋住「進化下一輪」', three);
+
+  // --- 22（M4）：Δ 落在雜訊帶內就灰掉標「雜訊」，門檻含等號 ---
+  const nf22 = 0.14792;
+  // 判定的是「有沒有被灰掉」，不是「字串裡有沒有雜訊兩個字」——
+  // 帶外那一句本來就寫著「超出雜訊帶」，用字串比會兩邊都中（這條 FAIL 過一次才發現）。
+  ok(`Δ 雜訊判定的邊界（${nf22} 內灰掉、剛好等於也灰掉、超過才算數）`,
+     isNoise(-0.0101, nf22) && isNoise(nf22, nf22) && !isNoise(0.1480, nf22)
+     && deltaHTML(-0.0101, nf22).includes('class="noise"')
+     && !deltaHTML(0.3, nf22).includes('class="noise"')
+     && deltaHTML(null, nf22).includes('沒有可比的上一輪'));
+
+  // --- 23（M4 修）：CI 誤差線與飽和點線的顏色不准被 CSS 蓋掉 ---
+  // `.chart .axis{stroke:var(--ds-line)}` 的優先級高於 SVG presentation attribute，
+  // 會把自己寫 stroke 的線全部蓋成 #2E3768，畫在 --ds-navy-800 上對比 1.23:1 = 看不見。
+  // 第 20 條只驗灰帶寬度，驗不到顏色，所以這一條要獨立存在。
+  const pcLines = $('#chart-perclass').querySelectorAll('line');
+  const satLine = $('#chart-curves').querySelector('line');
+  const strokeOf = el => getComputedStyle(el).stroke;
+  ok(`per-class 的 CI 誤差線是 --ds-ink-dim（量到 ${pcLines.length ? strokeOf(pcLines[0]) : '沒有線'}）`
+     + `、飽和點線是 --ds-valid（${satLine ? strokeOf(satLine) : '沒有線'}）`,
+     pcLines.length === 3 && [...pcLines].every(l => strokeOf(l) === 'rgb(167, 174, 200)')
+     && !!satLine && strokeOf(satLine) === 'rgb(227, 179, 65)');
+
+  // --- 24（M4 修）：別的 run 的 s08 事件不准蓋掉畫面上這個 run 的數字與 provenance ---
+  resetData();
+  EVAL.run_id = 'rA';
+  renderVerdict({run_id:'rA', verdict:'suspect', why:'A', map50:0.5750, map5095:0.2662,
+                 ci:{lo:0.1989, hi:0.4101, width:0.2112}, ds_fingerprint:'78cbc26eefc2a816',
+                 train_id:'rA-t1', significant:false, significance_why:'雜訊', checks:[]});
+  mergeCharts({curves:[{epoch:1, map5095:0.1}], confusion:{labels:['a'],matrix:[[1]],conf:0.5,iou:0.45}});
+  const curvesBefore = JSON.stringify(EVAL.charts.curves);
+  const ev08 = (type, data) => ({v:1, seq:(SEEN+1), ts:'', run_id:'rB', stage:'s08', type,
+                                 actor:'metric-auditor', data});
+  applyEvent(ev08('eval.verdict', {verdict:'trusted', checks:[], delta:0.9,
+                                   significant:true, anchor_ok:true}));
+  applyEvent(ev08('charts.series', {curves:[{epoch:1, map5095:0.9},{epoch:2, map5095:0.95}]}));
+  applyEvent(ev08('eval.perclass', {cls:0, name:'center', ap50:1.0, support:99}));
+  const vnum = $('#verdict-num').innerHTML;
+  ok('別的 run（rB）的 verdict / charts / perclass 不會掛到畫面上這個 run（rA）名下',
+     $('#vbadge').classList.contains('suspect') && vnum.includes('78cbc26e') && !vnum.includes('rB')
+     && JSON.stringify(EVAL.charts.curves) === curvesBefore
+     && !(EVAL.charts.per_class||[]).length);
+
+  // --- 25（M4 修）：走 SSE（沒有 REST 的 op_conf）時，作業點要從 confusion.conf 讀得到 ---
+  resetData();
+  applyEvent({v:1, seq:1, ts:'', run_id:'rC', stage:'s08', type:'charts.series',
+              actor:'metric-auditor', data:{curves:[], pr:[], per_class:[],
+              confusion:{labels:['center','background'], matrix:[[1,0],[0,1]],
+                         conf:0.01575, iou:0.45}}});
+  ok(`SSE 路徑也讀得到作業點（EVAL.op_conf ${EVAL.op_conf}，hint 不是「—」）`,
+     EVAL.op_conf === 0.01575 && $('#hint-cm').innerHTML.includes('0.0157'));
+
+  // --- 26（M4 修）：四張圖最小的字在桌機兩欄（一欄最窄 360px）下 ≥ 9 CSS px ---
+  // viewBox 寬固定 400、SVG width:100% —— 字級寫在 user unit，實際多大要乘縮放比例才知道。
+  // 修之前實測 4.74–5.43 CSS px（--ds-t-xs 是 11px），投影機上讀不出來。
+  const fharness = document.createElement('div');
+  fharness.style.cssText = 'position:absolute;left:-10000px;top:0;width:360px';
+  document.body.appendChild(fharness);
+  let minFontCssPx = Infinity, minChart = '';
+  for (const sel of ['#chart-curves','#chart-pr','#chart-cm','#chart-perclass']){
+    const clone = $(sel).cloneNode(true);
+    clone.removeAttribute('hidden'); fharness.appendChild(clone);
+    const vb = (clone.getAttribute('viewBox')||'0 0 400 100').split(/\s+/);
+    const scale = clone.getBoundingClientRect().width / (+vb[2] || CW);
+    for (const t of clone.querySelectorAll('text[font-size]')){
+      const cssPx = (+t.getAttribute('font-size')) * scale;
+      if (cssPx < minFontCssPx){ minFontCssPx = cssPx; minChart = sel; }
+    }
+  }
+  fharness.remove();
+  ok(`四張圖最小字級 ${minFontCssPx.toFixed(2)} CSS px ≥ 9（最小的在 ${minChart}）`,
+     minFontCssPx >= 9);
+
+  // --- 27（M5 修）：一條龍跑完，裁決卡的 mAP50-95 / CI 要自己填上，不准停在「—」 ---
+  // `eval.verdict` 事件照契約 §4 只帶 {verdict, checks, delta, significant, anchor_ok}，
+  // mAP 與 CI 只有 REST 的 /verdict 有。autoShowEval 只載推論牆的話，畫面會是
+  // 「verdict TRUSTED」配一整排「—」—— 主角數字要台上再手動按一次鈕才出現。
+  // 這裡把 loadEval 換成 spy：事件一到就必須有人拿這個 run 去打 REST。
+  resetData();
+  const realLoadEval = loadEval, spy = [];
+  loadEval = async (rid)=>{ spy.push(rid); };
+  RUN = 'rD';
+  applyEvent({v:1, seq:1, ts:'', run_id:'rD', stage:'s08', type:'eval.verdict',
+              actor:'metric-auditor', data:{verdict:'trusted', checks:[], delta:0,
+              significant:false, anchor_ok:true}});
+  loadEval = realLoadEval; RUN = null;
+  ok(`s08 裁決一到就去載 /charts ・ /verdict（spy 收到 ${JSON.stringify(spy)}）`,
+     spy.length === 1 && spy[0] === 'rD');
+
+  // --- 29（M5 修）：心跳框不是事件 —— 不進 log、不動 SEEN、不印「[未處理]」 ---
+  // 契約 §5.4 的心跳改成 data 框（註解行瀏覽器不交給 JS，每個超過 45 秒的 stage 都會被
+  // 看門狗判成斷線）。改完就必須有人在 reducer 裡把它擋掉，否則畫面每 15 秒長一行雜訊。
+  resetData();
+  const logBefore = $('#log').textContent.length;
+  applyEvent({v:1, type:'heartbeat'});
+  ok(`heartbeat 不進 log、不動 SEEN（SEEN ${SEEN}）`,
+     SEEN === 0 && $('#log').textContent.length === logBefore);
+
+  // --- 30（M5 修）：LLM 命名降級要在 rail 上看得見，而且撐得過 3 秒一次的快照覆寫 ---
+  resetData();
+  drawRail(STAGES.map(([id,name,owner])=>({id,name,owner,status:'pending'})));
+  applyEvent({v:1, seq:1, ts:'', run_id:'rE', stage:'s02', type:'class.table.frozen',
+              actor:'dataset-truth', data:{version:'v1', nc:6, names:['center'],
+              naming:'fallback', naming_error:'RuntimeError: claude 回報錯誤', naming_rationale:[]}});
+  const pill02 = $('#pill-s02');
+  const degradedNow = pill02.classList.contains('reused') && pill02.querySelector('i').textContent.includes('機械');
+  setStages({s02:'done'});                       // 模擬 3 秒後的快照輪詢
+  ok('s02 的 LLM 降級在 rail 上看得見（黃色・完成・機械命名），且快照覆寫後還在',
+     degradedNow && pill02.classList.contains('reused')
+     && pill02.querySelector('i').textContent.includes('機械')
+     && $('#err').querySelectorAll('.note-banner').length === 1);
+
+  // --- 31（M5 修）：旁白要出現在主畫面（#log 在右欄底部，1440×900 時整塊在畫面外） ---
+  logLine('這一行要出現在 ticker');
+  ok(`最新一行旁白同步到 rail 下面的 ticker（「${$('#ticker').textContent}」）`,
+     $('#ticker').textContent === '這一行要出現在 ticker'
+     && getComputedStyle($('#log')).fontSize === '12px');
+
+  // --- 33（側欄說謊的回歸測）：三個數字與健康狀態一律等於快照，不准是前端數出來的 ---
+  // 先製造「前端自算一定答錯」的處境：圖從事件進來，每張的 split 都是 null（事件就長這樣）。
+  resetData();
+  [1,2,3].forEach(i=>applyEvent(img(i,i)));
+  const snapOf = (extra)=>Object.assign({run_id:'rS', status:'done', ds_id:'dsS', last_seq:9,
+    class_table_version:null, counts:{total:120, loaded:120, labeled:120},
+    split:null, recipe:null}, extra);
+  applySnapshot(snapOf({split:{train:48, valid:12, anchor:20, sealed_test:40, unassigned:0}}));
+  const nums = ['#n-train','#n-valid','#n-test'].map(x=>$(x).textContent);
+  ok(`側欄 split 數字 == 快照（${nums.join(' / ')}，健康狀態「${$('#health').textContent}」）`,
+     JSON.stringify(nums)===JSON.stringify(['48','12','40'])
+     && $('#health').className==='ok' && !$('#health').textContent.includes('沒指派'));
+
+  // --- 34：s04 之前是「—」不是 0 —— 0 會被讀成「都沒分到」，那正是原本那個謊 ---
+  applySnapshot(snapOf({status:'running', counts:{total:120, loaded:120, labeled:0}}));
+  ok(`s04 之前三個數字是「—」而不是 0（得到 ${$('#n-train').textContent}）`,
+     $('#n-train').textContent==='—' && $('#health').textContent.includes('s04 還沒落檔'));
+
+  // --- 35：訓練設定 = 這一輪真的跑的那組（不是 M1 寫死的 yolov8n / 50 epoch / imgsz 640）---
+  applySnapshot(snapOf({recipe:{train_id:'rS-t2', status:'done', model:'yolov8n', epochs:10,
+                                imgsz:320, batch:8, device:'mps', elapsed_s:22.3}}));
+  const rtxt = $('#recipe').textContent;
+  ok(`訓練設定吃快照的 recipe（「${rtxt}」）`,
+     rtxt.includes('10') && rtxt.includes('320') && rtxt.includes('rS-t2')
+     && !rtxt.includes('640') && !rtxt.includes('50') && $('#dev').textContent==='mps');
+
+  // --- 36：做完的里程碑不准繼續標在畫面上（M2/M3 早就跑得動了） ---
+  // 37：沒有錯誤的時候不准有一條空的紅框常駐（`.alert{display:flex}` 的特異性贏過
+  //     瀏覽器預設的 `[hidden]{display:none}` —— 這是截圖才抓到的，DOM 查詢看不出來）
+  clearErr();
+  const alertHidden = getComputedStyle($('#alert')).display === 'none';
+  showErr({code:'TEST', detail:'測試用'});
+  const alertShown = getComputedStyle($('#alert')).display !== 'none';
+  clearErr();
+  ok(`錯誤橫幅平常不佔版面、有錯才出現（hidden=${alertHidden} / shown=${alertShown}）`,
+     alertHidden && alertShown);
+
+  const stale = ['(M2)','（M2）','M3 才會動','M8 未實作','M2 實作'];
+  const sideText = [...document.querySelectorAll('aside')].map(a=>a.textContent).join(' ')
+    + [...document.querySelectorAll('aside [title]')].map(a=>a.title).join(' ');
+  const found = stale.filter(x=>sideText.includes(x));
+  ok(`側欄沒有過期的里程碑標籤（${found.length ? found.join('、') : '一個都沒有'}）`, found.length===0);
+
+  // --- 38（blocker 回歸測）：錯誤橫幅不准把 detail 當 HTML 執行 ---
+  // detail 有兩個第三方來源：使用者填的 workspace（後端 404 原封回顯）、第三方回應 body 的
+  // 前 400 bytes。實測 workspace 填 <img/src="q"/onerror="…"> 按開始 run → 404 錯誤卡片
+  // 渲染出一個真的 IMG 節點、onerror 執行。這個頁面同源、Host 是 127.0.0.1，注進來的 JS
+  // POST /api/v1/runs 是通的（燒 GPU 與 token，README 自己寫的威脅模型）。
+  clearErr();
+  const nasty = '<img src="q" onerror="window.__pwned=1">';
+  showErr({code:'<b>404</b>', detail:`Roboflow 說找不到（404）：${nasty}`});
+  const injected = $('#alert').querySelectorAll('img, b').length;
+  ok(`錯誤橫幅把 detail 當文字（注入節點 ${injected} 個、__pwned=${window.__pwned}）`,
+     injected === 0 && window.__pwned === undefined
+     && $('#alert').textContent.includes(nasty));
+  clearErr();
+
+  // --- 39（同一個洞的第二個出口）：卡片 chips 的類別名也要跳脫 ---
+  // roboflow 那條路類別名來自第三方 data.yaml 的 `names:`，不是我們寫的字串。
+  resetData();
+  applyEvent(img(9, 1));
+  const imNasty = IMAGES[IDX.get('demo0009')];
+  imNasty.counts = {'<img src="q" onerror="window.__pwned2=1">': 2};
+  syncCard(imNasty);
+  const chipInjected = CARDS.get('demo0009').querySelector('.chips').querySelectorAll('img').length;
+  ok(`chips 的類別名當文字（注入節點 ${chipInjected} 個、__pwned2=${window.__pwned2}）`,
+     chipInjected === 0 && window.__pwned2 === undefined);
+
+  // --- 40：卡片的 split 值域 == 後端真的會回的那組（契約 §8.7） ---
+  // 側欄誠實（231/58/80）而同一頁的卡片全標「—」，是因為白名單漏了 anchor 與 sealed。
+  resetData();
+  ['train','valid','anchor','sealed'].forEach((sp,i)=>upsertImage(fromSnapshot(
+    {id:`rfz${i}`, name:`z${i}.jpg`, url:'/x', split:sp,
+     annotations:{count:1, classes:{Donut:1}}})));
+  const gotSplits = IMAGES.map(i=>i.split);
+  const badgeTxt = IMAGES.map(i=>CARDS.get(i.id).querySelector('.badge').textContent);
+  const countBy = v => { $('#fsplit').value = v; const n = IMAGES.filter(matches).length;
+                         $('#fsplit').value = ''; return n; };
+  const opts = [...$('#fsplit').options].map(o=>o.value);
+  const missing = ['train','valid','anchor','sealed','unassigned'].filter(v=>!opts.includes(v));
+  ok(`卡片吃得下後端的五個 split 值（${badgeTxt.join('/')}；sealed 篩出 ${countBy('sealed')}、`
+     + `未指派 ${countBy('unassigned')}；下拉缺 ${missing.length ? missing.join('、') : '無'}）`,
+     JSON.stringify(gotSplits) === JSON.stringify(['train','valid','anchor','sealed'])
+     && countBy('sealed') === 1 && countBy('anchor') === 1 && countBy('unassigned') === 0
+     && missing.length === 0);
+
+  // --- 41：stop{reason:"label_ceiling"} 要在 rail 上看得見（driver 真的會停在 s03） ---
+  resetData();
+  drawRail(STAGES.map(([id,name,owner])=>({id,name,owner,status:'pending'})));
+  const notesBefore = $('#err').querySelectorAll('.note-banner').length;
+  applyEvent({v:1, seq:1, ts:'', run_id:'rC', stage:'s03', type:'stop', actor:'console-owner',
+              data:{reason:'label_ceiling', detail:'天花板 IoU 中位數 0.2096 < 門檻 0.4',
+                    best_run:null, best_pt:null}});
+  const p03 = $('#pill-s03');
+  ok('stop{label_ceiling} → s03 標成「停・天花板不足」＋黃色旁白（不是紅色錯誤）',
+     p03.classList.contains('reused')
+     && p03.querySelector('i').textContent.includes('天花板')
+     && $('#err').querySelectorAll('.note-banner').length === notesBefore + 1
+     && $('#alert').hidden);
+  DEGRADED.delete('s03');
+
+  // --- 42：s04 的 ds.split 一到就去補影像快照（卡片的 split 只有快照有） ---
+  resetData();
+  const hit = [];
+  const realFetch2 = window.fetch;
+  window.fetch = async (u)=>{ hit.push(String(u));
+    return {ok:true, status:200, json: async ()=> ({offset:0, total:0, results:[]})}; };
+  const dsWas = DS;
+  try{
+    DS = 'dsX';   // fetchImages() 是 async，但 fetch 是在第一個 await 之前同步呼叫的
+    applyEvent({v:1, seq:1, ts:'', run_id:'rF', stage:'s04', type:'ds.split',
+                actor:'dataset-truth', data:{train:48, valid:12, unassigned:0}});
+  } finally { window.fetch = realFetch2; DS = dsWas; }
+  ok(`ds.split 一到就補抓影像快照（${hit[0] || '沒抓'}）`,
+     hit.some(u=>u.includes('/datasets/dsX/images')));
+
+  resetData();
+  const finish = ()=>{
+    out.textContent = lines.join('\n')
+      + `\n\n${fail ? fail+' 項失敗' : `全部通過（${lines.length} 條）`}`;
+    out.style.color = fail ? 'var(--ds-err)' : 'var(--ds-ok)';
+  };
+  finish();                                  // 前 27 條是純函式，先印出來
+
+  // --- 28（M5）：前端這張 stage 表必須與後端 registry.STAGE_TABLE 逐字相同 ---
+  // rail 在後端回應到之前是拿本地表畫的。兩邊文案漂開，畫面就會在最要緊的三十秒裡說謊
+  // （s05 顯示「抓模型並自己決定」但後端叫「抓模型並自己決定最好的」，學生對不上 log）。
+  // 這條要打真的 server：從 uvicorn 開 ?selftest=1 才跑得到，用 file:// 開一定 FAIL。
+  // --- 32（M5 修）：POST /runs 失敗不准把畫面清空（resetData 要在 fetch 成功之後才跑） ---
+  // 實測：跑完一整條龍之後把 source 改成 roboflow 按下開始 → 501 → 縮圖牆、四張圖、裁決卡
+  // 全部歸零，rail 卻還留著「s01–s08 全部完成」。台上手滑一次就沒了，而縮圖牆沒有任何
+  // UI 入口可以重載。這裡用假的 fetch 回 409（順便走 RUN_IN_FLIGHT 接手那條路）。
+  const failSafe = (async ()=>{
+    resetData();
+    applyEvent(img(7, 1));
+    const before = IMAGES.length, realFetch = window.fetch;
+    window.fetch = async ()=> ({ok:false, status:409,
+      json: async ()=> ({code:'RUN_IN_FLIGHT', run_id:'rZZ', detail:'測試用的 409'})});
+    try{ await startRun(); } finally { window.fetch = realFetch; }
+    ok(`POST /runs 失敗（409）之後縮圖牆還在（${before} → ${IMAGES.length} 張）`,
+       before === 1 && IMAGES.length === 1 && RUN === null
+       && $('#alert').textContent.includes('RUN_IN_FLIGHT'));
+    finish();
+  })();
+
+  failSafe.then(()=> fetch(API+'/api/v1/stages').then(r=>r.json()).then(j=>{
+    const back = j.stages || [], pipe = j.pipeline || [];
+    const diff = [];
+    if (back.length !== STAGES.length) diff.push(`格數 ${back.length} ≠ ${STAGES.length}`);
+    back.forEach((b,i)=>{
+      const f = STAGES[i] || [];
+      if (b.id !== f[0] || b.name !== f[1] || b.owner !== f[2])
+        diff.push(`${b.id}「${b.name}／${b.owner}」≠ 前端「${f[1]}／${f[2]}」`);
+    });
+    pipe.forEach(id => { if (!STAGES.some(f=>f[0]===id)) diff.push(`drive_run 跑 ${id}，前端沒這格`); });
+    pipe.forEach(id => { if (!LIVE.has(id)) diff.push(`drive_run 跑 ${id}，前端 LIVE 卻沒有它`); });
+    ok(`前端 stage 表與後端 STAGE_TABLE / drive_run 的 ${pipe.length} 段逐欄一致`
+       + (diff.length ? `：${diff.join('；')}` : ''), diff.length === 0);
+    finish();
+  }).catch(e=>{
+    ok(`GET /api/v1/stages 抓得到（${e}）—— 這條要從 uvicorn 開，不是 file://`, false);
+    finish();
+  }));
+}
+</script>
+</body>
+</html>

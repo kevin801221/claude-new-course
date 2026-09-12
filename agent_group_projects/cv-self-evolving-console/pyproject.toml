@@ -1,0 +1,35 @@
+[project]
+name = "cv-self-evolving-console"
+version = "0.1.0"
+description = "CV 自我進化主控台 —— 事件總線 + 五個 router 的單一 FastAPI app（教學專案）"
+requires-python = ">=3.11"
+
+# M1 依賴只有這六個。故意不裝的東西與理由：
+#   torch / ultralytics  → 移到 optional extra `train`（見檔案下方）。這兩個加起來數百 MB，
+#                          放進 base 就把 `uv sync` 從 2 秒變成好幾分鐘，
+#                          直接破壞 M1「全程 < 90 秒、零 GPU」的驗收條件。
+#   roboflow             → M8 才接真資料。M1 是程式生成的 120 張真點陣 wafer PNG，
+#                          零帳號、零網路，連 API key 都不需要。
+#   matplotlib           → 圖表一律前端 inline SVG 自畫（DESIGN「刻意不做的事」第 6 條），
+#                          後端只送 series JSON，不產 PNG。
+#   pytest               → 非 trivial 邏輯的檢查走 scripts/selfcheck.py 與前端 ?selftest=1，
+#                          要 pytest 時再 `uv add --dev pytest`（M4 的 tests/test_ci.py）。
+# 加依賴前先問 console-owner —— pyproject.toml 是共同地基（team-roles.md §0 紅線 3）。
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "numpy>=2.0",
+    "pillow>=11.0",
+    "scipy>=1.14",
+    "scikit-learn>=1.5",
+]
+
+# M3 起才需要的訓練依賴。**不預設安裝**：`uv sync` 不帶 extra 時這一組不會進 .venv，
+# M1 / M2 的 2 秒冷同步與「零 GPU」驗收條件因此保住。要訓練時才：
+#     uv sync --extra train
+# torch 在 Apple Silicon 上就是官方 PyPI wheel（內含 MPS backend），不需要額外 index。
+[project.optional-dependencies]
+train = [
+    "ultralytics>=8.3",
+    "torch>=2.4",
+]
