@@ -10,6 +10,17 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/git-commit-secret-guard.sh",
+            "timeout": 10,
+            "statusMessage": "🔍 正在檢查 Git 提交內容是否包含敏感資料..."
+          }
+        ]
       }
     ],
     "Stop": [
@@ -19,9 +30,20 @@
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify-done.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/humanizer-gate.py",
+            "timeout": 30,
+            "statusMessage": "🧐 Humanizer Gate 正在檢查文章品質與 AI 腔調..."
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "WebFetch"
     ]
   }
 }

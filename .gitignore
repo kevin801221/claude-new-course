@@ -93,3 +93,12 @@ Pods/
 **/local_chromadb/
 **/local_graph.db
 **/temp_uploads/
+
+# ──────────────────────────────────────────────
+# 獨立 repo（各自有 .git，不要被當 submodule 加進來）
+# ──────────────────────────────────────────────
+Anchor_knowledge.ai/
+stock-strategies-only/
+
+# hook 執行期狀態檔
+.claude/humanizer-state.json

@@ -1,6 +1,6 @@
 ---
 name: commit-zh
-description: 當使用者要求 commit 變更、寫 commit message，或執行 `git commit` 時使用。產出 Kevin 個人風格的繁體中文 commit message —— 簡潔、不加「Claude Code」署名、除非明確要求否則不用 emoji。觸發詞：「commit」「幫我 commit」「寫 commit msg」「git commit」，或在完成一系列編輯要收尾時。
+description: Use whenever the user asks to commit changes, write a commit message, or run `git commit`. Produces Traditional Chinese commit messages in Kevin's personal style — concise, no "Codex" attribution, no emoji unless explicitly requested. Triggers on "commit", "幫我 commit", "寫 commit msg", "git commit", or when finalizing a series of edits.
 ---
 
 # commit-zh
@@ -9,8 +9,8 @@ description: 當使用者要求 commit 變更、寫 commit message，或執行 `
 
 ## 黃金規則（不可協商）
 
-1. **作者要是 Kevin 不是 Claude Code**
-   - ❌ `Co-Authored-By: Claude` / `🤖 Generated with Claude Code`
+1. **作者要是 Kevin 不是 Codex**
+   - ❌ `Co-Authored-By: Codex` / `🤖 Generated with Codex`
    - ✅ 純淨 commit，**不加任何 AI 署名**
 2. **繁體中文** — 不是簡體、不是英文（除非檔名 / 變數名）
 3. **個人帳號 commit**（除非使用者明說「這是工作專案」）
@@ -48,7 +48,7 @@ Projects/2026-001-mvp/05-results/。
 ```
 把 walkthrough 教材搬到 docs/walkthroughs/
 
-3 份通用 Claude Code 教學（hooks / skills marketplace /
+3 份通用 Codex 教學（hooks / skills marketplace /
 4-skill 工作流）跟 wafer 專案無關，搬出來統一管。
 WALKTHROUGH.md 保留在 wafer 專案內。
 ```
@@ -57,8 +57,8 @@ WALKTHROUGH.md 保留在 wafer 專案內。
 ```
 update files
 
-Co-Authored-By: Claude <noreply@anthropic.com>
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Co-Authored-By: Codex <noreply@anthropic.com>
+🤖 Generated with [Codex](https://Codex.com/Codex)
 ```
 
 ❌ **不要的**：

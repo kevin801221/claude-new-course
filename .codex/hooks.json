@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/awesomeartengineer01/claude-new-course/.codex/hooks/guard-secrets.sh'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/awesomeartengineer01/claude-new-course/.codex/hooks/notify-done.sh'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
