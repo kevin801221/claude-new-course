@@ -2,42 +2,71 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cv-self-evolving-console/_Context/class_table.schema.json",
   "title": "class 真相表（全系統唯一 class 來源）",
-  "description": "由 dataset-truth 於 M2 產生 _Context/class_table.json：幾何描述子 → KMeans（silhouette 自選 k∈[3,6]）→ 每群 montage → 一次 LLM 命名。schema 於 M0 由 console-owner 凍結，M2 只填值不改欄位；改欄位走 _Context/api-contract.md §12。一發出的 version 不准改內容，只能發新 version。",
+  "description": "由 dataset-truth 產生（M2 的 KMeans+LLM 走 class_source:\"cluster\"；標註器與資料集自帶類別走 \"human\"）。原文：於 M2 產生 _Context/class_table.json：幾何描述子 → KMeans（silhouette 自選 k∈[3,6]）→ 每群 montage → 一次 LLM 命名。schema 於 M0 由 console-owner 凍結，M2 只填值不改欄位；改欄位走 _Context/api-contract.md §12。一發出的 version 不准改內容，只能發新 version。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "nc", "names", "cluster_stats", "naming_rationale", "montage_urls"],
+  "required": [
+    "version",
+    "nc",
+    "names",
+    "cluster_stats",
+    "naming_rationale",
+    "montage_urls"
+  ],
   "properties": {
     "version": {
       "description": "class_table_version。每個 run 都記這個值；跨版本的指標比較一律拒答（409 INCOMPARABLE_CLASS_TABLE）。",
       "type": "string",
       "pattern": "^v[1-9][0-9]*$",
-      "examples": ["v1"]
+      "examples": [
+        "v1"
+      ]
+    },
+    "class_source": {
+      "description": "這份 class 表是怎麼來的。\"cluster\"（預設，缺這一欄也當它）= KMeans + LLM 命名，六個固定詞的嚴格約束照舊；\"human\" = 人工標註器或資料集自帶的類別體系，放寬 nc / names / cluster_stats。契約 §12 變更（2026-09-12，批准人：console-owner；請求見 dataset-notes.md §17.6）。",
+      "type": "string",
+      "enum": [
+        "cluster",
+        "human"
+      ],
+      "default": "cluster"
     },
     "nc": {
-      "description": "類別數，必須等於 names 的長度（JSON Schema 表達不了跨欄相等，由 POST /datasets/{ds}/freeze 的 selfcheck assert）。上下界對齊 KMeans 的 k∈[3,6]。",
+      "description": "類別數，必須等於 names 的長度（JSON Schema 表達不了跨欄相等，由 POST /datasets/{ds}/freeze 的 selfcheck assert）。class_source=\"cluster\" 時上下界對齊 KMeans 的 k∈[3,6]；\"human\" 時只要 >= 1（資料集自帶 nc:1 是常態）。",
       "type": "integer",
-      "minimum": 3,
-      "maximum": 6
+      "minimum": 1
     },
     "names": {
       "description": "類別名 list（不是 dict）。索引即 class id，順序凍結後不准重排 —— 重排等於把所有既有 label 的 cls 值意義換掉。data.yaml 的 names 直接用這個陣列。",
       "type": "array",
-      "minItems": 3,
-      "maxItems": 6,
+      "minItems": 1,
+      "maxItems": 64,
       "uniqueItems": true,
       "items": {
-        "description": "固定詞彙表：LLM 只能從這六個挑，不准自己發明新詞（否則跨版本不可比，且 edge_ring / edge-ring 這種拼法差異會讓比較靜默失敗）。",
+        "description": "class_source=\"cluster\"：只能從那六個固定詞挑（否則跨版本不可比，且 edge_ring / edge-ring 這種拼法差異會讓比較靜默失敗）。\"human\"：domain 專家自己定的名字，不受詞彙表約束。",
         "type": "string",
-        "enum": ["center", "donut", "edge-ring", "edge-loc", "scratch", "random"]
+        "minLength": 1,
+        "maxLength": 40
       }
     },
     "cluster_stats": {
-      "description": "分群的可稽核證據。k 與 silhouette 放在這裡而不是頂層，是為了讓頂層剛好維持 DESIGN 寫死的六個欄位。",
-      "type": "object",
+      "description": "分群的可稽核證據。k 與 silhouette 放在這裡而不是頂層，是為了讓頂層剛好維持 DESIGN 寫死的六個欄位。 class_source=\"human\" 時是 null —— 人工標註沒有 silhouette 可言，與其填一個假的分數，不如誠實留 null。",
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
-      "required": ["k", "silhouette", "clusters"],
+      "required": [
+        "k",
+        "silhouette",
+        "clusters"
+      ],
       "properties": {
-        "k": { "type": "integer", "minimum": 3, "maximum": 6 },
+        "k": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 6
+        },
         "silhouette": {
           "description": "被選中的 k 的 silhouette 分數（自選 k 的依據）。",
           "type": "number",
@@ -47,7 +76,11 @@
         "silhouette_by_k": {
           "description": "選填：k=3..6 各自的分數，前端拿來畫「為什麼選這個 k」。",
           "type": "object",
-          "additionalProperties": { "type": "number", "minimum": -1, "maximum": 1 }
+          "additionalProperties": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          }
         },
         "clusters": {
           "type": "array",
@@ -56,9 +89,18 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["cluster_id", "size", "support", "descriptor_mean", "excluded"],
+            "required": [
+              "cluster_id",
+              "size",
+              "support",
+              "descriptor_mean",
+              "excluded"
+            ],
             "properties": {
-              "cluster_id": { "type": "integer", "minimum": 0 },
+              "cluster_id": {
+                "type": "integer",
+                "minimum": 0
+              },
               "size": {
                 "description": "這一群的圖片張數。",
                 "type": "integer",
@@ -73,20 +115,41 @@
                 "description": "幾何描述子的群平均，就是命名理由的數字來源。",
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["ring_ness", "center_ness", "elongation", "edge_frac", "n_components", "defect_ratio"],
+                "required": [
+                  "ring_ness",
+                  "center_ness",
+                  "elongation",
+                  "edge_frac",
+                  "n_components",
+                  "defect_ratio"
+                ],
                 "properties": {
-                  "ring_ness": { "type": "number" },
-                  "center_ness": { "type": "number" },
-                  "elongation": { "type": "number" },
-                  "edge_frac": { "type": "number" },
-                  "n_components": { "type": "number" },
-                  "defect_ratio": { "type": "number" },
+                  "ring_ness": {
+                    "type": "number"
+                  },
+                  "center_ness": {
+                    "type": "number"
+                  },
+                  "elongation": {
+                    "type": "number"
+                  },
+                  "edge_frac": {
+                    "type": "number"
+                  },
+                  "n_components": {
+                    "type": "number"
+                  },
+                  "defect_ratio": {
+                    "type": "number"
+                  },
                   "radial_hist": {
                     "description": "選填：徑向分佈直方圖 8 bin 的群平均。",
                     "type": "array",
                     "minItems": 8,
                     "maxItems": 8,
-                    "items": { "type": "number" }
+                    "items": {
+                      "type": "number"
+                    }
                   }
                 }
               },
@@ -102,8 +165,21 @@
             },
             "allOf": [
               {
-                "if": { "properties": { "excluded": { "const": true } }, "required": ["excluded"] },
-                "then": { "required": ["exclude_reason"] }
+                "if": {
+                  "properties": {
+                    "excluded": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "excluded"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "exclude_reason"
+                  ]
+                }
               }
             ]
           }
@@ -113,15 +189,27 @@
     "naming_rationale": {
       "description": "每個入選群一筆：LLM 為什麼把這群叫這個名字。沒有 evidence 的命名視同無效（和討論迴圈同一條規矩：沒有證據的發言不進池）。",
       "type": "array",
-      "minItems": 3,
-      "maxItems": 6,
+      "minItems": 1,
+      "maxItems": 64,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["cluster_id", "name", "rationale", "evidence"],
+        "required": [
+          "cluster_id",
+          "name",
+          "rationale",
+          "evidence"
+        ],
         "properties": {
-          "cluster_id": { "type": "integer", "minimum": 0 },
-          "name": { "type": "string", "enum": ["center", "donut", "edge-ring", "edge-loc", "scratch", "random"] },
+          "cluster_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
           "rationale": {
             "description": "繁中一行，必須引用數字。例：「這群 ring_ness 0.91、平均半徑集中在 0.55R → donut」。",
             "type": "string",
@@ -136,7 +224,13 @@
           "bbox_rule": {
             "description": "選填：這個類別的 bbox 精修規則代號（就是 label.bbox 事件的 boxes[].rule）。M1 只有 cc_bbox。",
             "type": "string",
-            "enum": ["cc_bbox", "ring_annulus", "edge_component", "pca_axis", "skip"]
+            "enum": [
+              "cc_bbox",
+              "ring_annulus",
+              "edge_component",
+              "pca_axis",
+              "skip"
+            ]
           },
           "conf_threshold": {
             "description": "選填：這個類別的信心門檻，低於就進送審清單（label.lowconf）。",
@@ -148,14 +242,78 @@
       }
     },
     "montage_urls": {
-      "description": "每群 9 張代表圖拼成的 montage，順序對齊 cluster_stats.clusters。一律走自家 proxy 的相對路徑，不放外部網址。",
+      "description": "每群 9 張代表圖拼成的 montage，順序對齊 cluster_stats.clusters。一律走自家 proxy 的相對路徑，不放外部網址。 class_source=\"human\" 時是空陣列（沒有分群就沒有 montage）。",
       "type": "array",
-      "minItems": 3,
+      "minItems": 0,
       "maxItems": 6,
       "items": {
         "type": "string",
         "pattern": "^/api/v1/images/|^02-dataset/|^01-raw-data/"
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "$comment": "class_source 缺席或 \"cluster\" → 原本那組嚴格約束一字不改地生效。",
+      "if": {
+        "not": {
+          "properties": {
+            "class_source": {
+              "const": "human"
+            }
+          },
+          "required": [
+            "class_source"
+          ]
+        }
+      },
+      "then": {
+        "properties": {
+          "nc": {
+            "minimum": 3,
+            "maximum": 6
+          },
+          "names": {
+            "minItems": 3,
+            "maxItems": 6,
+            "items": {
+              "enum": [
+                "center",
+                "donut",
+                "edge-ring",
+                "edge-loc",
+                "scratch",
+                "random"
+              ]
+            }
+          },
+          "cluster_stats": {
+            "type": "object"
+          },
+          "naming_rationale": {
+            "minItems": 3,
+            "maxItems": 6,
+            "items": {
+              "properties": {
+                "name": {
+                  "enum": [
+                    "center",
+                    "donut",
+                    "edge-ring",
+                    "edge-loc",
+                    "scratch",
+                    "random"
+                  ]
+                }
+              }
+            }
+          },
+          "montage_urls": {
+            "minItems": 3,
+            "maxItems": 6
+          }
+        }
+      }
+    }
+  ]
 }

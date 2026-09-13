@@ -28,7 +28,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from .. import bus, registry
-from ...autolabel import cluster, demo, freeze as freeze_mod, geometry, roboflow_src
+from ...autolabel import cluster, demo, freeze as freeze_mod, geometry, human, roboflow_src
 
 router = APIRouter(tags=["dataset"])
 
@@ -107,7 +107,10 @@ def _class_table_bounds() -> tuple[int, int, tuple[str, ...]]:
 
     不在程式裡抄一份：抄了就會走鐘，而走鐘的那天是「落檔出去的 cls 值意義全錯」。
     """
-    spec = json.loads(CLASS_TABLE_SCHEMA.read_text("utf-8"))["properties"]["names"]
+    # §12 放寬之後（2026-09-12），六個固定詞與 nc∈[3,6] 搬進 `allOf` 的嚴格分支
+    # （`class_source` 缺席或 "cluster" 才生效）。KMeans 那條路要的就是這一組。
+    schema = json.loads(CLASS_TABLE_SCHEMA.read_text("utf-8"))
+    spec = schema["allOf"][0]["then"]["properties"]["names"]
     return spec["minItems"], spec["maxItems"], tuple(spec["items"]["enum"])
 
 
@@ -447,8 +450,82 @@ def _bill_llm(run_id: str, llm: dict[str, Any] | None, **extra: Any) -> None:
     registry.set_status(run_id, state["status"], **extra)  # 同一個狀態再寫一次 = 帳本補一行
 
 
+def _human_class_names(ds_id: str, manifest: dict[str, Any]) -> list[str]:
+    """人工那條路的類別名：資料集自帶的優先，其次才是標註器裡專家自己定的。
+
+    順序不能倒過來 —— 資料集自帶的 `names` 是落檔 YOLO txt 裡 `cls` 值的意義來源，
+    標註器的清單只是「這個 ds 上還沒有官方類別時」的替代品。倒過來會讓既有的 cls 靜默錯位。
+    """
+    rf = manifest.get("roboflow") or {}
+    names = [str(n) for n in (rf.get("names") or manifest.get("names") or [])]
+    return names or human.get_classes(ds_id)
+
+
+def _freeze_human_class_table(*, run_id: str, ds_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
+    """`labels:"human"` 的 s02：**不分群、不呼叫 LLM**，直接把自帶的類別體系凍成 class 真相表。
+
+    契約 §12 變更（2026-09-12，批准人：console-owner，請求見 `dataset-notes.md` §17.6）之前，
+    這裡是一句 `409 CLASS_TABLE_SCHEMA_CONFLICT` —— schema 照「KMeans + LLM 命名」凍死了
+    `nc∈[3,6]`、六個固定詞、`cluster_stats` 必填，而 WM-811K v3 的 `nc:1 names:['Donut']` 三條全踩。
+    放寬之後（`class_source:"human"` 時 nc >= 1、names 自由、`cluster_stats` 允許 null）這條路才走得通。
+
+    **仍然沒有的東西照樣留空**：`cluster_stats` 是 `null`（人工標註沒有 silhouette），
+    `montage_urls` 是 `[]`（沒有分群就沒有 montage）。填假的分數比留 null 更糟。
+    """
+    names = _human_class_names(ds_id, manifest)
+    if not names:
+        raise _err(
+            409, "HUMAN_CLASSES_MISSING",
+            f"dataset {ds_id} 走的是 labels:\"human\"，但資料集沒有自帶 names，"
+            f"標註器裡也還沒有人工類別表。先 PUT /api/v1/datasets/{ds_id}/human/classes "
+            f'（例如 {{"names":["Donut"]}}），或改用 labels:"auto" 讓 KMeans 自己發現類別。',
+        )
+    version = _next_class_table_version(ds_id)
+    table = {
+        "version": version,
+        "class_source": "human",
+        "nc": len(names),
+        "names": names,
+        "cluster_stats": None,
+        "naming_rationale": [
+            {"cluster_id": i, "name": n,
+             "rationale": "人工標註自帶的類別名（沒有分群，也就沒有命名理由可編）",
+             "evidence": f"01-raw-data/datasets/{ds_id}/manifest.json"}
+            for i, n in enumerate(names)
+        ],
+        "montage_urls": [],
+    }
+    _write_json(_class_table_path(ds_id), table)
+    _write_json(CLASS_TABLE_GLOBAL, table)
+    _write_json(_ds_dir(ds_id) / "naming.json",
+                {"class_table_version": version, "naming": "human", "error": None, "llm": None})
+    # s04 的分層抽樣要「每張圖屬於哪一類」（`clusters.json`）。人工這條路沒有分群，但有
+    # 逐框自帶的 cls —— 取一張圖裡最多數的那個類當分層鍵，而 naming_rationale 的 cluster_id
+    # 就是 names 的索引，所以這份 map 是恆等的、不會發生「群號對到別的類名」那種靜默錯位。
+    # 落檔的每一行 cls 仍然以**框自己的**為準（freeze.yolo_lines），這裡只影響分層。
+    boxes_of = _read_json(_ds_dir(ds_id) / "labels.json") or {}
+    primary: dict[str, int] = {}
+    for rec in manifest["images"]:
+        got = [b.get("cls", -1) for b in (boxes_of.get(rec["id"]) or []) if b.get("cls", -1) >= 0]
+        primary[rec["id"]] = max(set(got), key=got.count) if got else 0
+    _write_json(_ds_dir(ds_id) / "clusters.json", primary)
+    bus.append_event(
+        run_id, "s02", "class.table.frozen", "dataset-truth",
+        {"version": version, "nc": table["nc"], "names": table["names"],
+         "naming_rationale": table["naming_rationale"],
+         "naming": "human", "naming_error": None, "class_source": "human"},
+        text=f"class 真相表 {version} 凍結：nc={table['nc']} names={table['names']}"
+             f"（人工類別，沒有分群也沒有 LLM 呼叫）",
+    )
+    return {
+        "k": None, "silhouette": None, "silhouette_by_k": None,
+        "class_table_version": version, "nc": table["nc"], "names": table["names"],
+        "naming": "human", "llm": None, "naming_error": None,
+    }
+
+
 def _refuse_human_class_table(manifest: dict[str, Any]) -> None:
-    """`labels:"human"` 的 s02：類別不必發現（人工標註自帶類別名），但 class 真相表**塞不進去**。
+    """（已停用，留著當教材）§12 放寬 schema 之前，`labels:"human"` 停在這裡的那句 409。
 
     `class_table.schema.json` 🔒 是照「KMeans + LLM 命名」凍的：`nc` ∈ [3,6]、`names` 只能是
     那六個固定詞、`cluster_stats` 必填 `k` / `silhouette` / `clusters`（minItems 3）。
@@ -494,7 +571,8 @@ async def run_cluster(
     if manifest is None:
         raise _err(404, "DS_NOT_FOUND", f"dataset {ds_id} 還沒進場（先跑 s01 ingest）")
     if manifest.get("labels") == "human":
-        _refuse_human_class_table(manifest)
+        # 人工那條路：類別體系已經有了，分群與 LLM 命名都是多餘的（而且會蓋掉真的類別）
+        return _freeze_human_class_table(run_id=run_id, ds_id=ds_id, manifest=manifest)
     ids = [rec["id"] for rec in manifest["images"]]
 
     descriptors: list[dict[str, Any]] = []
@@ -935,6 +1013,194 @@ def classes(ds: str) -> dict[str, Any]:
                    f"dataset {ds} 還沒有 class 真相表（先跑 POST /api/v1/label/auto {{mode:\"cluster\"}}）")
     naming = _read_json(_ds_dir(ds) / "naming.json") or {}
     return {**table, "ds_id": ds, "naming": naming.get("naming"), "llm": naming.get("llm")}
+
+
+# ---------- 標註器（§8.9）：domain 專家自己圈，或一鍵讓幾何 / VLM 先圈 ----------
+#
+# 四個來源共用同一條落檔路徑（`human.save_boxes`），差別只在「候選框誰產的」：
+#   manual   前端拖出來的        geometry  連通分量 auto-bbox（免費離線）
+#   vlm      claude -p 看圖回框   import    資料集自帶的人工 GT
+# 建議框**不會自己落檔**：專家按了採用才 PUT。一鍵生出來就當真相的話，這就不是人工標註，
+# 是換個地方的 auto-label（而 s02 的教訓就是這個）。
+
+
+class HumanClassesBody(BaseModel):
+    names: list[str]
+
+
+class HumanBoxesBody(BaseModel):
+    boxes: list[dict[str, Any]]
+    by: str = "manual"
+    run_id: str | None = None   # 給了才發 `label.human` 事件（沒有 run 就只是存檔）
+
+
+class SuggestBody(BaseModel):
+    method: str = "geometry"    # geometry | vlm | import
+    run_id: str | None = None
+
+
+def _ds_manifest_or_404(ds: str) -> dict[str, Any]:
+    manifest = _read_json(_ds_dir(ds) / "manifest.json")
+    if manifest is None:
+        raise _err(404, "DS_NOT_FOUND", f"dataset {ds} 不存在")
+    return manifest
+
+
+def _image_in_ds(manifest: dict[str, Any], image_id: str) -> dict[str, Any]:
+    for rec in manifest["images"]:
+        if rec["id"] == image_id:
+            return rec
+    raise _err(404, "IMAGE_NOT_FOUND", f"image {image_id} 不在這個 dataset 裡")
+
+
+def _dataset_gt_boxes(manifest: dict[str, Any], image_id: str) -> list[dict[str, Any]]:
+    """資料集自帶的人工框（「本身就有答案」那條路）。非 roboflow 來源就是空的。"""
+    if (manifest.get("roboflow") or {}).get("slug") is None:
+        return []
+    try:
+        index = _rf_index(manifest)
+    except HTTPException:
+        return []
+    return [dict(b) for b in (roboflow_src.boxes_of(index).get(image_id) or [])]
+
+
+@router.get("/datasets")
+def list_datasets(limit: int = 50) -> dict[str, Any]:
+    """機器上已經進場過的 dataset 清單（新的在前）。標註器的下拉靠它。
+
+    **只讀最近 `limit` 個**：`01-raw-data/datasets/` 實測已經 140 個，每份 manifest 動輒
+    幾百筆影像紀錄，全讀一遍是把「開個下拉」變成秒級操作。編號本身就是時間序（ds1、ds2…），
+    照數字倒序取前 N 個就是「最近用的那幾個」。
+    """
+    if not 1 <= limit <= 200:
+        raise _err(400, "BAD_RANGE", f"limit 要在 1..200（收到 {limit}）")
+    dirs = [d for d in DS_DIR.glob("ds*") if d.is_dir()]
+    dirs.sort(key=lambda d: int(d.name[2:]) if d.name[2:].isdigit() else -1, reverse=True)
+    out: list[dict[str, Any]] = []
+    for d in dirs[:limit]:
+        manifest = _read_json(d / "manifest.json")
+        if manifest is None:      # 半路被 Ctrl-C 的 ingest 會留下空目錄，不要讓它擋住整份清單
+            continue
+        table = _read_json(_class_table_path(d.name)) or {}
+        out.append({
+            "ds_id": d.name,
+            "source": manifest.get("source"),
+            "labels": manifest.get("labels"),
+            "total": len(manifest.get("images") or []),
+            "class_table_version": table.get("version"),
+            "nc": table.get("nc"),
+            "class_source": table.get("class_source", "cluster" if table else None),
+            "human_labeled": len(human.load(d.name)["images"]),
+        })
+    return {"total": len(dirs), "shown": len(out), "datasets": out}
+
+
+@router.get("/datasets/{ds}/human")
+def human_stats(ds: str) -> dict[str, Any]:
+    """標註進度：類別清單、標了幾張、幾個框、各來源各幾張、每類幾個框。"""
+    _ds_manifest_or_404(ds)
+    return {"ds_id": ds, **human.stats(ds)}
+
+
+@router.put("/datasets/{ds}/human/classes")
+def human_set_classes(ds: str, body: HumanClassesBody) -> dict[str, Any]:
+    """設人工類別清單（索引即 cls）。只准往後加或改名，不准縮到讓既有框指空。"""
+    _ds_manifest_or_404(ds)
+    try:
+        names = human.set_classes(ds, body.names)
+    except ValueError as exc:
+        raise _err(400, "HUMAN_CLASSES_INVALID", str(exc)) from exc
+    return {"ds_id": ds, "classes": names, "nc": len(names)}
+
+
+@router.get("/datasets/{ds}/human/boxes/{image_id}")
+def human_get_boxes(ds: str, image_id: str) -> dict[str, Any]:
+    """這張圖的：人工框（如果圈過）＋ 兩份可以一鍵採用的現成框（auto / 資料集 GT）。"""
+    manifest = _ds_manifest_or_404(ds)
+    _image_in_ds(manifest, image_id)
+    rec = human.get_boxes(ds, image_id) or {}
+    auto = (_read_json(_ds_dir(ds) / "labels.json") or {}).get(image_id) or []
+    return {
+        "ds_id": ds, "image_id": image_id,
+        "classes": human.get_classes(ds),
+        "boxes": rec.get("boxes", []), "by": rec.get("by"), "ts": rec.get("ts"),
+        "available": {"auto": [dict(b) for b in auto],
+                      "dataset": _dataset_gt_boxes(manifest, image_id)},
+    }
+
+
+@router.put("/datasets/{ds}/human/boxes/{image_id}")
+def human_put_boxes(ds: str, image_id: str, body: HumanBoxesBody) -> dict[str, Any]:
+    """存這張圖的人工框（整包取代，不是 append）。`run_id` 給了就順便發 `label.human`。"""
+    manifest = _ds_manifest_or_404(ds)
+    _image_in_ds(manifest, image_id)
+    try:
+        rec = human.save_boxes(ds, image_id, body.boxes, by=body.by)
+    except LookupError as exc:
+        raise _err(409, "HUMAN_CLASSES_MISSING",
+                   f"{exc} —— 例：PUT /api/v1/datasets/{ds}/human/classes "
+                   '{"names":["scratch","donut"]}') from exc
+    except ValueError as exc:
+        raise _err(400, "HUMAN_BOX_INVALID", str(exc)) from exc
+
+    if body.run_id:
+        state = registry.read_state(body.run_id)
+        if state is None:
+            raise _err(404, "RUN_NOT_FOUND", f"run {body.run_id} 不存在")
+        if state["status"] in registry.LIVE_STATUSES:
+            names = human.get_classes(ds)
+            bus.append_event(
+                body.run_id, "s02", "label.human", "dataset-truth",
+                {"image_id": image_id, "n_boxes": len(rec["boxes"]), "by": rec["by"],
+                 "classes": sorted({names[b["cls"]] for b in rec["boxes"] if b["cls"] < len(names)})},
+                text=f"人工標註 {image_id}：{len(rec['boxes'])} 個框（{rec['by']}）",
+            )
+    return {"ds_id": ds, "image_id": image_id, **rec, "stats": human.stats(ds)}
+
+
+@router.post("/datasets/{ds}/human/suggest/{image_id}")
+async def human_suggest(ds: str, image_id: str, body: SuggestBody) -> dict[str, Any]:
+    """一鍵產候選框。**只回候選，不落檔** —— 要落檔請接著 PUT。
+
+    `vlm` 那條會真的呼叫 `claude -p`（要網路、要錢）。失敗不降級成幾何框：
+    使用者按的是「AI 看圖」，靜默換成連通分量就是在騙人。
+    """
+    manifest = _ds_manifest_or_404(ds)
+    _image_in_ds(manifest, image_id)
+    if body.method not in ("geometry", "vlm", "import"):
+        raise _err(400, "BAD_ENUM", f'method 只接受 ["geometry","vlm","import"]，收到 {body.method!r}')
+
+    if body.method == "import":
+        boxes = _dataset_gt_boxes(manifest, image_id)
+        if not boxes:
+            raise _err(409, "NO_DATASET_LABELS",
+                       f"{image_id} 沒有資料集自帶的人工框可以匯入"
+                       "（demo 是合成資料、roboflow 也不是每張都有）")
+        return {"method": "import", "boxes": boxes, "cost_usd": 0.0}
+
+    path = roboflow_src.path_of(image_id)
+    if path is None:
+        raise _err(404, "IMAGE_NOT_FOUND", f"image {image_id} 的檔案不存在")
+
+    if body.method == "geometry":
+        boxes = await asyncio.to_thread(human.suggest_geometry, path)
+        return {"method": "geometry", "boxes": boxes, "cost_usd": 0.0}
+
+    classes = human.get_classes(ds) or list(_human_class_names(ds, manifest))
+    if not classes:
+        raise _err(409, "HUMAN_CLASSES_MISSING",
+                   f"要先有類別表 VLM 才知道能填哪些 cls："
+                   f'PUT /api/v1/datasets/{ds}/human/classes {{"names":[...]}}')
+    if body.run_id:
+        _bill_llm_start(body.run_id)     # 正在燒的那一通要先看得見（同 s02 的規矩）
+    try:
+        out = await asyncio.to_thread(human.suggest_vlm, path, classes)
+    except Exception as exc:             # FileNotFoundError / timeout / 回的 JSON 不合法都算
+        raise _err(502, "VLM_SUGGEST_FAILED",
+                   f"VLM 圈框失敗（{type(exc).__name__}）：{str(exc)[:200]}") from exc
+    if body.run_id:
+        _bill_llm(body.run_id, {"cost_usd": out["cost_usd"]})
+    return {"method": "vlm", "classes": classes, **out}
 
 
 @router.post("/datasets/{ds}/freeze", status_code=202)

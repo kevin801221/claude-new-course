@@ -18,7 +18,7 @@
 |---|---|---|
 | 訓練模型 | ✅ 真的訓練（yolov8n · 10 epoch） | server 一定要 `uv run --extra train …` 起 |
 | GPU | ✅ 用 MPS（Apple Silicon） | `PYTORCH_ENABLE_MPS_FALLBACK=1` 已內建 |
-| LLM 呼叫 / 花錢 | ✅ **一次** `claude -p` 命名 6 個群（實測 $0.25–0.41、150–200 秒） | 失敗會降級成機械命名，rail 上會標黃「完成・機械命名」 |
+| LLM 呼叫 / 用量 | ✅ **一次** `claude -p` 命名 6 個群（實測 150–200 秒、折算 $0.25–0.41） | 折算值不是帳單：訂閱制走用量額度。失敗會降級成機械命名，rail 上標黃 |
 | Roboflow 帳號 / API key | ⬜ `source:"demo"` 不用；`source:"roboflow"` 要（只填 `.env`，前端不持 key） | 見下面「用 Roboflow 真圖跑」 |
 | 網路 | 只有 LLM 命名那一步要 | 離線時設 `CV_LLM_CMD=nope` 走降級路徑 |
 | mAP 圖表 | ✅ 四張 inline SVG（零圖表庫） | |
@@ -90,6 +90,48 @@ curl -s localhost:8000/healthz   # {"ok":true,"contract_v":1,"milestone":"M5","p
 curl -s -X POST localhost:8000/api/v1/runs -H 'content-type: application/json' -d '{}'
 curl -sN 'localhost:8000/api/v1/runs/r1/events?since=0'   # 全段回放，Ctrl-C 離開
 curl -s localhost:8000/api/v1/models/candidates      # 501：M2+ 的端點只有簽章
+```
+
+## 標註器：domain 專家自己圈（第四個分頁）
+
+上面那條線是「AI 自己標」。這一頁是它的對照組：**人自己圈**，或一鍵讓現成的東西先圈。
+
+開法：`標註器 · 人工圈` 分頁 → 左上下拉挑一個 dataset（列最近 50 個，標著來源／張數／已標幾張／幾類）。
+**不必先開 run** —— 標註本來就在訓練之前。換 dataset 直接換下拉即可（run 還在跑時會擋下來，不讓兩批圖混在同一面牆）。
+
+| 來源 | 按鈕 | 花費 |
+|---|---|---|
+| 手動 | 在圖上拖曳；數字鍵 1–9 選類別、Backspace 刪框 | 0 |
+| 資料集自帶的人工 GT | 「匯入現成答案」 | 0，離線 |
+| 幾何（連通分量） | 「一鍵幾何」 | 0，離線 |
+| VLM 看圖 | 「一鍵 AI 看圖」（`claude -p` 用 Read 看圖回框） | 29 秒；**折算** $0.196（訂閱制不逐次扣款，見下） |
+
+> **那個 `$` 不是帳單。** 走 `claude -p`，用的是你登入那個帳號的用量。本機實測 `billingType: stripe_subscription`（Max 5x 席次、未開超額加購）—— **訂閱制不會逐次扣款**，畫面上那個 `$` 是 Claude Code 依 API 定價**折算**的用量計，不是帳單。只有改用 `ANTHROPIC_API_KEY` 走 Console 額度才是真的錢。
+
+一鍵產的是**候選**，按「存這張」才落檔到 `01-raw-data/datasets/<ds>/labels_human.json`
+（不覆蓋 auto 的 `labels.json` —— 人工框是資產，而且兩份分開才比得了 IoU）。
+
+純 curl 也行（契約 §8.11 五支端點）：
+
+```bash
+curl -s -X PUT  localhost:8000/api/v1/datasets/ds148/human/classes \
+  -H 'content-type: application/json' -d '{"names":["Donut","scratch"]}'
+curl -s -X POST localhost:8000/api/v1/datasets/ds148/human/suggest/<image_id> \
+  -H 'content-type: application/json' -d '{"method":"geometry"}'   # geometry | vlm | import
+curl -s -X PUT  localhost:8000/api/v1/datasets/ds148/human/boxes/<image_id> \
+  -H 'content-type: application/json' -d '{"boxes":[{"cls":0,"cx":0.5,"cy":0.5,"w":0.4,"h":0.3}]}'
+curl -s localhost:8000/api/v1/datasets/ds148/human      # 標註進度
+```
+
+### `labels:"human"` 那條路通了（2026-09-12）
+
+以前真實資料只能走 `labels:"auto"`（KMeans 自己發明類別），`labels:"human"` 會停在
+`409 CLASS_TABLE_SCHEMA_CONFLICT`。契約 §12 放寬 class 表 schema 之後（`class_source:"human"`
+時 `nc>=1`、名字自由、`cluster_stats` 允許 null），**人工框可以一路訓練到底**：
+
+```bash
+curl -s -X POST localhost:8000/api/v1/runs -H 'content-type: application/json' \
+  -d '{"mode":"oneshot","source":"roboflow","labels":"human","preset":"real","limit":409}'
 ```
 
 ## 用 Roboflow 真圖跑（`source:"roboflow"`）

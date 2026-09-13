@@ -132,6 +132,7 @@ run 狀態 enum 🔒：`queued` / `running` / `done` / `failed` / `cancelled` / 
 | type | stage | `data` 欄位 | M1 |
 |---|---|---|---|
 | `run.created` | s01 | `{run_id, mode, source, preset, stages[], ds_id}` | ✅ |
+| `label.human` | s02 | `{image_id, n_boxes, by:"manual"\|"geometry"\|"vlm"\|"import", classes[]}` | ✅ |
 | `ds.total` | s01 | `{total:int, source:string}` | ✅ |
 | `ds.image` | s01 | `{id, name, url, cls:string[], counts:object, split:null}` | ✅ |
 | `ds.progress` | s01 | `{loaded:int, total:int}` | ✅ |
@@ -444,6 +445,31 @@ Query：`w` int 64..1024 選填（縮圖寬，等比；不給回原尺寸）。
 - 存在的理由：前端 rail 在後端回應到之前是拿本地那張表畫的，兩邊文案漂開畫面就會說謊。
   `?selftest=1` 的最後一條打這支逐欄比對，對不上或抓不到一律 FAIL。
 
+### 8.11 標註器（人工圈 bbox）— 五支端點
+
+**擁有者 dataset-truth。** domain 專家自己圈，或一鍵讓現成的東西先圈。四種來源共用同一條落檔
+路徑，差別只在候選框誰產的：`manual`（拖曳）、`geometry`（連通分量，免費離線）、
+`vlm`（`claude -p` 看圖，要網路、算進登入帳號的用量）、`import`（資料集自帶的人工 GT）。
+
+🔒 **建議框不落檔**：`suggest` 只回候選，專家按「存這張」才 `PUT`。一鍵生出來就當真相的話，
+這不是人工標註，是換個地方的 auto-label。
+
+| 方法 | 路徑 | body / 回應 |
+|---|---|---|
+| `GET` | `/api/v1/datasets?limit=50` | → `{total, shown, datasets:[{ds_id, source, labels, total, class_table_version, nc, class_source, human_labeled}]}`，編號倒序（新的在前）。**只讀最近 `limit` 個**：實測 140 個 ds，每份 manifest 幾百筆影像，全讀是把「開個下拉」變成秒級操作 |
+| `GET` | `/api/v1/datasets/{ds}/human` | → `{ds_id, classes[], images_labeled, boxes, by:{來源:張數}, per_class:{類別名:框數}}` |
+| `PUT` | `/api/v1/datasets/{ds}/human/classes` | `{names:[...]}` → `{ds_id, classes[], nc}`。索引即 `cls`。**只准往後加或改名**：縮短到讓既有框指向不存在的類別回 `400 HUMAN_CLASSES_INVALID` |
+| `GET` | `/api/v1/datasets/{ds}/human/boxes/{image_id}` | → `{boxes[], by, ts, classes[], available:{auto[], dataset[]}}`。`available` 是兩份可以一鍵採用的現成框（幾何 / 資料集自帶） |
+| `PUT` | `/api/v1/datasets/{ds}/human/boxes/{image_id}` | `{boxes:[{cls,cx,cy,w,h}], by, run_id?}` → `{...rec, stats}`。**整包取代不是 append**。給了 `run_id` 就順便發一筆 `label.human` |
+| `POST` | `/api/v1/datasets/{ds}/human/suggest/{image_id}` | `{method:"geometry"\|"vlm"\|"import", run_id?}` → `{method, boxes[], cost_usd}`。`vlm` 走 `claude -p`，算進登入帳號的用量（實測單張 29 秒、折算 $0.196；訂閱制不逐次扣款），失敗回 `502 VLM_SUGGEST_FAILED` 且**不降級成幾何框** |
+
+框的驗證（信任邊界，`PUT` 與 VLM 回來的都要過）：`cls ∈ [0,nc)`、`w,h > 0`、
+`cx±w/2` 與 `cy±h/2` 都在 `[0,1]`、一張圖最多 500 個框。**任何一條不過就整批拒收**——
+跳過壞的那幾個更糟：專家圈了 30 個、存完剩 28 個，而畫面上看不出差別。
+
+落檔在 `01-raw-data/datasets/<ds>/labels_human.json`（不覆蓋 auto 的 `labels.json`：
+人工框是資產，壓在同一個檔裡下一輪 run 就沒了，而且兩份分開才比得了 IoU）。
+
 ### 8.9 人工 GO 閘門的明文豁免 🔒
 
 既有 `training-runner.md` 規定訓練前要停下等使用者回 `GO`。本契約裁決：
@@ -530,7 +556,12 @@ HTTP `501 Not Implemented`。**不准提前實作、不准改成 404、不准回
 | `404` | `ROBOFLOW_NOT_FOUND` | workspace / project 不存在。**version 不存在不算**：退回 `max(version_ids)` 並在 `ds.total` 的 text 標一行 ⚠ |
 | `409` | `ROBOFLOW_UNREACHABLE` | 連不到 Roboflow（沒網路 / 防火牆）。demo 那條線全程離線，不受影響 |
 | `409` | `ROBOFLOW_DOWNLOAD_FAILED` | export 還在生成、zip 壞掉、解壓後找不到 `<split>/images/`、標註行不是 5 欄 YOLO |
-| `409` | `CLASS_TABLE_SCHEMA_CONFLICT` | `labels:"human"` 的資料集配不出合法的 class 真相表（🔒 `class_table.schema.json` 是照「KMeans + LLM 命名」凍的：`nc∈[3,6]`、`names` 只能是那六個固定詞、`cluster_stats` 必填 —— WM-811K v3 的 `nc:1 names:['Donut']` 三條全踩）。**刻意不硬塞**：補到 3 類 = 發明類別，讓 KMeans 當類別體系而框留人工 = 框的 `cls` 靜默錯位。真實資料要跑完整條線就用 `labels:"auto"` |
+| `409` | `CLASS_TABLE_SCHEMA_CONFLICT` | **（2026-09-12 起不再發生，保留在表上當歷史）** `labels:"human"` 的資料集曾經配不出合法的 class 真相表 —— §12 放寬 schema（`class_source:"human"` 時 `nc>=1`、`names` 不受詞彙表約束、`cluster_stats` 允許 null）之後，這條路直接凍表，不再回這個碼 |
+| `409` | `HUMAN_CLASSES_MISSING` | 要存人工框（或要 VLM 圈框）但這個 ds 還沒有人工類別表。`detail` 附上 `PUT /datasets/{ds}/human/classes` 的範例 |
+| `400` | `HUMAN_CLASSES_INVALID` | 類別名空白 / 重複 / 超過 40 字 / 超過 64 個，或縮短到讓既有框的 `cls` 指向不存在的類別 |
+| `400` | `HUMAN_BOX_INVALID` | 框不合法：`cls` 超出 `[0,nc)`、寬高 <= 0、超出影像範圍、或一張圖超過 500 個框。整批拒收 |
+| `409` | `NO_DATASET_LABELS` | `suggest {method:"import"}` 但這張圖沒有資料集自帶的人工框（demo 是合成資料；roboflow 也不是每張都有） |
+| `502` | `VLM_SUGGEST_FAILED` | `suggest {method:"vlm"}` 失敗（找不到 `claude` CLI / 逾時 / 回的不是合法 JSON 陣列 / 框沒過驗證）。**不降級成幾何框**：使用者按的是「AI 看圖」
 | `409` | `CEILING_UNAVAILABLE` | 要 `GET /eval/ceiling` 但那個 ds 沒有人工 GT（或 s03 還沒跑完） |
 | `501` | `NOT_IMPLEMENTED` | §9 的佔位端點；或傳了 `mode:"manual"/"autonomous"`、`source:"local"`（`source:"roboflow"` 已實作，2026-09-12） |
 
@@ -656,3 +687,23 @@ runs/<run_id>/state.json         ← pid / 狀態（M3 起才有內容）
 | C | s03 的 `label.anchor_iou {iou_median,iou_hist,verdict}` 只有一種來源；但 M1 量的是合成 GT（門檻 0.6）、M3 起量的是 Roboflow 人工 anchor（門檻 0.4） | `data` **加兩個欄位** `source` 與 `threshold`（向後相容的加欄） | 兩把尺混在同一個 type 裡，前端與 `label_ceiling` 判定分不出「0.55 是過還是不過」 |
 
 > 另記一條分工調整：DESIGN 的開工順序把 `class_table.json` 的 schema 凍結掛在 `dataset-truth`，但同一條也寫「M0 閘門不過不准 spawn 任何人」。M0 現場只有 console-owner，因此 `_Context/class_table.schema.json` 由 console-owner 凍結欄位，`dataset-truth` 在 M2 **只填值不改欄位**；要改欄位走 §12。
+
+- 2026-09-12 · 🔒 `class_table.schema.json` + §8.11 + §10 · **放寬 class 真相表的來源**：新增選填欄位
+  `class_source: "cluster"|"human"`（缺席視同 `"cluster"`，既有已落檔的表一個字都不用改）。
+  `"cluster"` 那條路的嚴格約束（`nc∈[3,6]`、六個固定詞、`cluster_stats` 必填）原封不動搬進
+  `allOf` 的條件分支；`"human"` 時 `nc>=1`、`names` 是自由字串（仍 `uniqueItems`）、
+  `cluster_stats` 允許 `null`、`montage_urls` 允許空陣列。
+  **為什麼**：`labels:"human"` 從 M8 起就卡在 `409 CLASS_TABLE_SCHEMA_CONFLICT` —— schema 是照
+  「KMeans + LLM 命名」凍的，而資料集自帶的類別體系（實測 WM-811K v3 是 `nc:1 names:['Donut']`）
+  三條全踩。硬塞的兩種做法都更糟（補到 3 類 = 發明類別；KMeans 當類別體系配人工框 = `cls` 靜默錯位）。
+  **誰跟著改**：schema 與本契約（console-owner）、`dataset.py` 的 `_refuse_human_class_table()`
+  換成 `_freeze_human_class_table()` 並補寫 `clusters.json`（dataset-truth）、
+  `_class_table_bounds()` 改讀 `allOf` 分支（dataset-truth）。
+  **驗**：jsonschema 六組（既有 cluster 表 / 人工 nc=1 / 沒掛 class_source 的人工表要被擋 /
+  cluster 只給 2 類要被擋 / 重複名要被擋 / 人工 9 類自訂名要過）全如預期；
+  `labels:"human"` 實跑 r149 s01→s04 綠燈（train 24 / valid 6 / anchor 10 / sealed 20、0 未指派）。
+  請求來源：`dataset-notes.md` §17.6 · 批准：console-owner
+- 2026-09-12 · §4 · 新增 type `label.human`（`dataset-truth`）：專家存一張圖的人工框時發一筆
+  （`run_id` 是選填的 —— 標註本來就在訓練之前，沒有 run 也要標得了，那時就只落檔不發事件）· console-owner
+- 2026-09-12 · §8.11 · 新增標註器五支端點（純新增，無破壞式改動）· console-owner
+- 2026-09-12 · §8.11 · 新增 `GET /api/v1/datasets`（已進場過的 dataset 清單，編號倒序、預設只讀最近 50 個）。標註器原本要人**盲打 ds 編號**，而機器上實測已經 140 個 —— 純新增端點，無破壞式改動 · console-owner

@@ -212,6 +212,30 @@ main{display:flex;flex-direction:column;overflow:hidden}
 @media (max-width:1100px){.app{grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto;height:auto}
   aside{border:0;border-bottom:1px solid var(--ds-line)}.wall{max-height:60vh}
   .view{overflow:visible}.scroll{max-height:70vh}}
+
+/* ===== 標註器（第四分頁）：domain 專家自己圈 bbox =====
+   .lb-stage 的 aspect-ratio 由影像的 naturalWidth/Height 現算（見 lbOpen）——
+   跟 .thumb{aspect-ratio:1} 同一個教訓：槽的比例不等於影像比例，框就會整體位移。 */
+.lb-body{flex:1;display:flex;gap:var(--ds-4);padding:var(--ds-5);overflow:hidden}
+.lb-stage{position:relative;background:var(--ds-navy-900);border:1px solid var(--ds-line);
+  border-radius:var(--ds-r);align-self:start;width:100%;max-width:640px;aspect-ratio:1;
+  overflow:hidden;touch-action:none}
+.lb-stage img{display:block;width:100%;height:100%;object-fit:fill;image-rendering:pixelated}
+.lb-ov{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
+.lb-ov rect{fill:rgba(217,119,87,.10);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.lb-ov rect.on{fill:rgba(217,119,87,.30)}
+.lb-ov rect.draft{stroke-dasharray:3 2;fill:rgba(217,119,87,.06)}
+.lb-side{width:300px;flex:0 0 300px;overflow-y:auto}
+.lb-boxes{max-height:240px;overflow-y:auto}
+.lb-row{display:flex;gap:var(--ds-2);align-items:center;font-family:var(--ds-mono);
+  font-size:var(--ds-t-xs);padding:2px var(--ds-1);border-radius:var(--ds-r-sm);cursor:pointer}
+.lb-row:hover{background:var(--ds-navy-900)}
+.lb-row.on{background:rgba(217,119,87,.16)}
+.lb-row i{width:10px;height:10px;border-radius:2px;flex:0 0 10px}
+.lb-cls{display:flex;gap:var(--ds-1);flex-wrap:wrap;margin-bottom:var(--ds-2)}
+.lb-chip{font-size:var(--ds-t-xs);padding:2px 8px;border-radius:99px;cursor:pointer;
+  border:1px solid var(--ds-line);color:var(--ds-ink-dim);font-family:var(--ds-mono);background:none}
+.lb-chip.on{border-color:var(--ds-coral);color:var(--ds-ink)}
 </style>
 </head>
 <body>
@@ -281,6 +305,7 @@ main{display:flex;flex-direction:column;overflow:hidden}
       <button class="tab on" data-view="data">縮圖牆 · s01/s03</button>
       <button class="tab" data-view="eval">評分圖表 · s08</button>
       <button class="tab" data-view="pred">推論圖牆 · valid</button>
+      <button class="tab" data-view="label">標註器 · 人工圈</button>
     </div>
 
     <div class="view" id="view-data">
@@ -363,6 +388,53 @@ main{display:flex;flex-direction:column;overflow:hidden}
           </div>
         </div>
         <div class="pwall" id="pwall"></div>
+      </div>
+    </div>
+
+    <!-- ===== 標註器 · s02/s03：domain 專家自己圈，或一鍵讓幾何 / VLM / 資料集 GT 先圈 ===== -->
+    <div class="view" id="view-label" hidden>
+      <div class="toolbar">
+        <select id="lb-ds" style="max-width:300px" title="標註不必等 run —— 直接挑一個既有 dataset"></select>
+        <button class="btn btn-sm btn-ghost" id="lb-load">載入</button>
+        <select id="lb-pick" style="max-width:220px"></select>
+        <button class="btn btn-sm btn-ghost" id="lb-prev">‹ 上一張</button>
+        <button class="btn btn-sm btn-ghost" id="lb-next">下一張 ›</button>
+        <span style="width:var(--ds-4)"></span>
+        <button class="btn btn-sm btn-ghost" id="lb-imp" title="資料集自帶的人工框">匯入現成答案</button>
+        <button class="btn btn-sm btn-ghost" id="lb-geo" title="連通分量，免費離線">一鍵幾何</button>
+        <button class="btn btn-sm btn-ghost" id="lb-vlm"
+          title="claude -p 看圖：要網路，並且算進你登入帳號的用量（訂閱制不逐次扣款，$ 是折算值）">一鍵 AI 看圖</button>
+        <span class="spacer"></span>
+        <button class="btn btn-sm btn-primary" id="lb-save">存這張</button>
+        <span class="status" id="lb-stat">挑一個 dataset 就能開始標（不用先開 run）</span>
+      </div>
+      <div class="lb-body">
+        <div class="lb-stage" id="lb-stage">
+          <img id="lb-img" alt="">
+          <svg id="lb-ov" class="lb-ov" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="lb-side">
+          <div class="panel">
+            <h4>類別</h4>
+            <div class="hint">數字鍵 1–9 切換。索引就是落檔的 <b>cls</b>，凍結後不要重排 ——
+              重排等於把所有既有框的類別意義換掉。</div>
+            <div class="lb-cls" id="lb-cls"></div>
+            <div class="row-load">
+              <input id="lb-newcls" placeholder="新增類別名" style="flex:1">
+              <button class="btn btn-sm btn-ghost" id="lb-addcls">加</button>
+            </div>
+          </div>
+          <div class="panel">
+            <h4>這張圖的框 · <span id="lb-n">0</span></h4>
+            <div class="hint">在圖上拖曳畫框；點框選取、Backspace 刪除。
+              一鍵產的是<b>候選</b>，按「存這張」才落檔。</div>
+            <div class="lb-boxes" id="lb-list"></div>
+          </div>
+          <div class="panel">
+            <h4>標註進度</h4>
+            <div class="kv" id="lb-prog">—</div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -1609,10 +1681,231 @@ $('#pwall').addEventListener('mouseover', e=>{
 });
 $('#pwall').addEventListener('mouseout', ()=>{ $('#tip').hidden = true; });
 
+// ---------- 標註器（第四分頁）：手動拖 / 幾何 / VLM / 匯入，四個來源一個落檔路徑 ----------
+// 前端只負責「畫」與「送」，一個數字都不自己算：框的合法性（0..1、寬高 > 0、cls 在範圍內）
+// 由後端 human.validate_boxes 再驗一次 —— 這裡的 clamp 是手感，不是信任邊界。
+const LB = {id:null, boxes:[], classes:[], cls:0, sel:-1, by:'manual', draft:null, drag:null};
+const LB_COLORS = ['--ds-coral','--ds-train','--ds-valid','--ds-test','--ds-err','--ds-unassigned'];
+function lbColor(i){ return `var(${LB_COLORS[((i % LB_COLORS.length) + LB_COLORS.length) % LB_COLORS.length]})`; }
+
+function lbNorm(a, b){        // 兩個 0..1 的點 → 正規化框（純函式，selftest 蓋它）
+  const x0 = Math.max(0, Math.min(1, Math.min(a.x, b.x)));
+  const x1 = Math.max(0, Math.min(1, Math.max(a.x, b.x)));
+  const y0 = Math.max(0, Math.min(1, Math.min(a.y, b.y)));
+  const y1 = Math.max(0, Math.min(1, Math.max(a.y, b.y)));
+  const w = x1 - x0, h = y1 - y0;
+  if (w < 0.004 || h < 0.004) return null;   // 手抖點一下不該產生一個 0 寬的框
+  const r = v => Math.round(v * 1e6) / 1e6;
+  return {cx:r((x0+x1)/2), cy:r((y0+y1)/2), w:r(w), h:r(h)};
+}
+function lbPoint(ev){         // 滑鼠事件 → 0..1（stage 的比例已經等於影像比例，不用再校正）
+  const r = $('#lb-stage').getBoundingClientRect();
+  return {x:(ev.clientX - r.left) / r.width, y:(ev.clientY - r.top) / r.height};
+}
+
+function lbDraw(){
+  const rect = (b, cls) => {
+    const x = ((b.cx - b.w/2) * 100).toFixed(3), y = ((b.cy - b.h/2) * 100).toFixed(3);
+    return `<rect class="${cls}" x="${x}" y="${y}" width="${(b.w*100).toFixed(3)}"`
+         + ` height="${(b.h*100).toFixed(3)}" style="stroke:${lbColor(b.cls|0)}"`
+         + ` data-i="${cls === 'draft' ? -1 : LB.boxes.indexOf(b)}"></rect>`;
+  };
+  $('#lb-ov').innerHTML = LB.boxes.map((b,i)=>rect(b, i === LB.sel ? 'on' : ''))
+                          .concat(LB.draft ? [rect({...LB.draft, cls:LB.cls}, 'draft')] : []).join('');
+  $('#lb-n').textContent = LB.boxes.length;
+  $('#lb-list').innerHTML = LB.boxes.map((b,i)=>
+    `<div class="lb-row ${i===LB.sel?'on':''}" data-i="${i}">`
+    + `<i style="background:${lbColor(b.cls|0)}"></i>`
+    + `<span>${esc(LB.classes[b.cls] ?? ('cls'+b.cls))}</span>`
+    + `<span class="spacer"></span><span>${(b.w*100).toFixed(1)}×${(b.h*100).toFixed(1)}%</span></div>`
+  ).join('') || '<div class="hint">還沒有框</div>';
+  $('#lb-cls').innerHTML = LB.classes.map((n,i)=>
+    `<button class="lb-chip ${i===LB.cls?'on':''}" data-c="${i}"`
+    + ` style="border-color:${i===LB.cls?lbColor(i):'var(--ds-line)'}">${i+1} ${esc(n)}</button>`
+  ).join('') || '<div class="hint">還沒有類別 —— 先在下面加一個</div>';
+}
+
+async function lbProgress(){
+  if (!DS) return;
+  try{
+    const j = await getJSON(`/api/v1/datasets/${DS}/human`);
+    const per = Object.entries(j.per_class || {}).map(([k,v])=>`${esc(k)} ${v}`).join(' · ');
+    $('#lb-prog').innerHTML = `已標 <b>${j.images_labeled}</b> 張 · <b>${j.boxes}</b> 個框`
+      + (per ? `<br>${per}` : '')
+      + (Object.keys(j.by||{}).length ? `<br>來源 ${Object.entries(j.by).map(([k,v])=>`${k} ${v}`).join(' · ')}` : '');
+  }catch{ /* ds 還沒進場就不顯示，不用報錯 */ }
+}
+
+function lbSync(){            // 切到這一頁時把圖片清單灌進下拉
+  const vis = visible();
+  const cur = LB.id;
+  $('#lb-pick').innerHTML = vis.map(im=>`<option value="${esc(im.id)}">${esc(im.name)}</option>`).join('');
+  if (!vis.length){ $('#lb-stat').textContent = '縮圖牆還沒有圖 —— 先按左邊「開始 run」'; return; }
+  lbOpen(vis.some(im=>im.id===cur) ? cur : vis[0].id);
+}
+
+async function lbOpen(id){
+  if (!id || !DS) return;
+  LB.id = id; LB.sel = -1; LB.draft = null; LB.by = 'manual';
+  $('#lb-pick').value = id;
+  const im = IMAGES.find(x=>x.id===id);
+  const img = $('#lb-img');
+  img.onload = ()=>{ $('#lb-stage').style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`; };
+  img.src = (im && im.url) || `/api/v1/images/${id}`;
+  try{
+    const j = await getJSON(`/api/v1/datasets/${DS}/human/boxes/${id}`);
+    LB.classes = j.classes || []; LB.boxes = j.boxes || []; LB.by = j.by || 'manual';
+    LB.avail = j.available || {auto:[], dataset:[]};
+    if (LB.cls >= LB.classes.length) LB.cls = 0;
+    $('#lb-stat').textContent = `${id} · ${LB.boxes.length} 個框`
+      + (j.by ? `（上次由 ${j.by} 存的）` : '（還沒標過）')
+      + ` · 現成的：資料集 GT ${LB.avail.dataset.length} / 幾何 ${LB.avail.auto.length}`;
+  }catch(e){ showErr(e); }
+  lbDraw(); lbProgress();
+}
+
+function lbAdopt(boxes, by){  // 一鍵來的候選框：整包取代，不 append（append 會疊兩層）
+  LB.boxes = boxes.map(b=>({cls: Math.min(b.cls|0, Math.max(LB.classes.length-1, 0)),
+                            cx:b.cx, cy:b.cy, w:b.w, h:b.h}));
+  LB.by = by; LB.sel = -1; lbDraw();
+}
+
+async function lbSuggest(method){
+  if (!DS || !LB.id) return;
+  const btn = {geometry:'#lb-geo', vlm:'#lb-vlm', import:'#lb-imp'}[method];
+  $(btn).disabled = true;
+  const was = $('#lb-stat').textContent;
+  $('#lb-stat').textContent = method === 'vlm'
+    ? 'AI 看圖中…（一次 claude -p，最長 180 秒，算進登入帳號的用量）' : '產生候選框…';
+  try{
+    const r = await fetch(API+`/api/v1/datasets/${DS}/human/suggest/${LB.id}`, {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({method, run_id: RUN || null})});
+    const j = await r.json();
+    if (!r.ok) throw j;
+    lbAdopt(j.boxes, method);
+    $('#lb-stat').textContent = `${method} 給了 ${j.boxes.length} 個候選框`
+      // `$` 是 claude -p 回的 total_cost_usd —— 依 API 定價**折算**的用量，訂閱制不會逐次扣款
+    + (j.cost_usd ? ` · 折算 $${j.cost_usd.toFixed(4)}` : '') + ' —— 改完按「存這張」才落檔';
+  }catch(e){ $('#lb-stat').textContent = was; showErr(e); }
+  finally{ $(btn).disabled = false; }
+}
+
+async function lbSave(){
+  if (!DS || !LB.id) return;
+  $('#lb-save').disabled = true;
+  try{
+    const r = await fetch(API+`/api/v1/datasets/${DS}/human/boxes/${LB.id}`, {
+      method:'PUT', headers:{'content-type':'application/json'},
+      body: JSON.stringify({boxes: LB.boxes, by: LB.by, run_id: RUN || null})});
+    const j = await r.json();
+    if (!r.ok) throw j;
+    $('#lb-stat').textContent = `已存 ${LB.id}：${j.boxes.length} 個框（${j.by}）`;
+    logLine(`人工標註 ${LB.id}：${j.boxes.length} 個框（${j.by}）`);
+    lbProgress();
+  }catch(e){ showErr(e); }
+  finally{ $('#lb-save').disabled = false; }
+}
+
+async function lbAddClass(){
+  const inp = $('#lb-newcls'), name = inp.value.trim();
+  if (!name || !DS) return;
+  try{
+    const r = await fetch(API+`/api/v1/datasets/${DS}/human/classes`, {
+      method:'PUT', headers:{'content-type':'application/json'},
+      body: JSON.stringify({names: [...LB.classes, name]})});
+    const j = await r.json();
+    if (!r.ok) throw j;
+    LB.classes = j.classes; LB.cls = j.classes.length - 1; inp.value = ''; lbDraw();
+  }catch(e){ showErr(e); }
+}
+
+// 拖曳畫框：pointer 事件（滑鼠 / 觸控 / 筆一套搞定）
+$('#lb-ov').addEventListener('pointerdown', e=>{
+  if (e.button !== 0) return;
+  const hit = e.target.tagName === 'rect' ? +e.target.dataset.i : -1;
+  if (hit >= 0){ LB.sel = hit; lbDraw(); return; }        // 點既有框 = 選它，不是開始畫
+  LB.drag = lbPoint(e); LB.sel = -1;
+  // 補捉指標：拖到圖外面放開也收得到 pointerup。合成事件（?selftest / 自動化）沒有真的
+  // pointerId，這裡會丟 InvalidPointerId —— 不接住的話整條拖曳就死在第一步。
+  try{ $('#lb-ov').setPointerCapture(e.pointerId); }catch{}
+});
+$('#lb-ov').addEventListener('pointermove', e=>{
+  if (!LB.drag) return;
+  LB.draft = lbNorm(LB.drag, lbPoint(e)); lbDraw();
+});
+$('#lb-ov').addEventListener('pointerup', e=>{
+  if (!LB.drag) return;
+  const b = lbNorm(LB.drag, lbPoint(e));
+  LB.drag = null; LB.draft = null;
+  if (b){
+    if (!LB.classes.length){ showErr({code:'HUMAN_CLASSES_MISSING', detail:'先加一個類別再畫框'}); return lbDraw(); }
+    LB.boxes = [...LB.boxes, {cls: LB.cls, ...b}]; LB.sel = LB.boxes.length - 1; LB.by = 'manual';
+  }
+  lbDraw();
+});
+$('#lb-list').onclick = e=>{
+  const row = e.target.closest('.lb-row'); if (!row) return;
+  LB.sel = +row.dataset.i; lbDraw();
+};
+$('#lb-cls').onclick = e=>{
+  const chip = e.target.closest('.lb-chip'); if (!chip) return;
+  LB.cls = +chip.dataset.c;
+  if (LB.sel >= 0){ LB.boxes[LB.sel] = {...LB.boxes[LB.sel], cls: LB.cls}; LB.by = 'manual'; }
+  lbDraw();
+};
+$('#lb-pick').onchange = e=> lbOpen(e.target.value);
+// 標註是**訓練之前**的工作：沒有 run 也要能開一個既有 ds 來標，不然專家得先燒一次 GPU 才圈得到框
+// 進標註器分頁：先把機器上已經進場過的 dataset 抓成下拉（140 個 ds 要盲打編號是陷阱不是介面）
+async function lbEnter(){
+  const sel = $('#lb-ds');
+  try{
+    const j = await getJSON('/api/v1/datasets?limit=50');
+    sel.innerHTML = j.datasets.map(d=>{
+      const tag = [d.source, d.labels, `${d.total} 張`,
+                   d.human_labeled ? `已標 ${d.human_labeled}` : null,
+                   d.nc ? `${d.nc} 類` : null].filter(Boolean).join(' · ');
+      return `<option value="${esc(d.ds_id)}">${esc(d.ds_id)} — ${esc(tag)}</option>`;
+    }).join('');
+    if (j.shown < j.total) sel.title = `只列最近 ${j.shown} 個（機器上共 ${j.total} 個）`;
+    if (DS && j.datasets.some(d=>d.ds_id===DS)) sel.value = DS;
+  }catch(e){ showErr(e); }
+  if (LB.id) return lbSync();          // 已經在標了就別把畫面洗掉
+  if (sel.value) $('#lb-load').click();
+}
+$('#lb-load').onclick = async ()=>{
+  const ds = $('#lb-ds').value.trim();
+  if (!ds) return;
+  if (ds === DS && LB.id) return lbSync();     // 同一個 ds 又按一次：別把標到一半的框洗掉
+  // ⚠️ 不清就會混兩批：`fetchImages()` 是 upsert（它本來的工作是重連補圖，不是換資料集），
+  // 舊 ds 的 120 張會留在 IMAGES 裡，`lbSync()` 抓到的第一張還是上一個 ds 的 id
+  // → `GET /datasets/<新ds>/human/boxes/<舊id>` → 404 IMAGE_NOT_FOUND（實測踩到）。
+  if (RUN && ds !== DS){
+    $('#lb-ds').value = DS;
+    return showErr({code:'RUN_NOT_LIVE', detail:`run ${RUN} 還在跑，先等它結束或按「中止 run」再換 dataset`});
+  }
+  resetData();
+  DS = ds; LB.id = null; LB.boxes = []; LB.sel = -1; LB.draft = null;
+  $('#lb-stat').textContent = `載入 ${ds} 的影像…`;
+  try{ await fetchImages(); }catch(e){ return showErr(e); }
+  if (!IMAGES.length){ $('#lb-stat').textContent = `${ds} 沒有影像（ds 編號打錯？）`; return; }
+  lbSync();
+};
+$('#lb-ds').onchange = ()=> $('#lb-load').click();   // 選了就載，不用再按一次「載入」
+$('#lb-prev').onclick = ()=>{ const v = visible(); const i = v.findIndex(x=>x.id===LB.id); if (i > 0) lbOpen(v[i-1].id); };
+$('#lb-next').onclick = ()=>{ const v = visible(); const i = v.findIndex(x=>x.id===LB.id); if (i >= 0 && i < v.length-1) lbOpen(v[i+1].id); };
+$('#lb-geo').onclick = ()=> lbSuggest('geometry');
+$('#lb-vlm').onclick = ()=> lbSuggest('vlm');
+$('#lb-imp').onclick = ()=> lbSuggest('import');
+$('#lb-save').onclick = lbSave;
+$('#lb-addcls').onclick = lbAddClass;
+$('#lb-newcls').addEventListener('keydown', e=>{ if (e.key === 'Enter') lbAddClass(); });
+
 // ---------- wire ----------
 function showView(v){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.view===v));
-  ['data','eval','pred'].forEach(k => $('#view-'+k).hidden = (k !== v));
+  ['data','eval','pred','label'].forEach(k => $('#view-'+k).hidden = (k !== v));
+  if (v === 'label') lbEnter();   // 清單是進來時才抓的（ds 與縮圖牆隨時在長）
 }
 document.querySelectorAll('.tab').forEach(t => t.onclick = ()=> showView(t.dataset.view));
 $('#vbadge').onclick = e => { e.stopPropagation(); $('#vpanel').hidden = !$('#vpanel').hidden; };
@@ -1638,6 +1931,26 @@ $('#source').onchange();
 // `stratifiedSplit()` 本人留著 —— 契約 §11 的 assert 2 要拿它跟 Python 版逐筆比對。
 document.addEventListener('keydown', e=>{
   if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  // 標註器開著的時候，1–9 是選類別、Backspace 是刪框 —— 同一組鍵在兩個分頁意思不同，
+  // 不分開的話在標註器按 1 會去指派 split（而且是指派給縮圖牆上選取的圖，完全看不到）
+  if (!$('#view-label').hidden){
+    if (/^[1-9]$/.test(e.key)){
+      const i = +e.key - 1;
+      if (i < LB.classes.length){
+        LB.cls = i;
+        if (LB.sel >= 0){ LB.boxes[LB.sel] = {...LB.boxes[LB.sel], cls:i}; LB.by = 'manual'; }
+        lbDraw();
+      }
+      return;
+    }
+    if ((e.key === 'Backspace' || e.key === 'Delete') && LB.sel >= 0){
+      e.preventDefault();
+      LB.boxes = LB.boxes.filter((_,i)=>i !== LB.sel); LB.sel = -1; LB.by = 'manual'; lbDraw();
+      return;
+    }
+    if (e.key === 'Escape'){ LB.sel = -1; LB.draft = null; LB.drag = null; lbDraw(); return; }
+    return;
+  }
   const m = {'1':'train','2':'valid','3':'test','0':''};
   if (e.key in m) assign(m[e.key]);
 });
@@ -1647,7 +1960,8 @@ if (!new URLSearchParams(location.search).get('selftest')) adoptRun(remembered()
 
 // ---------- self-check：?selftest=1（9 → 18 → M4 = 22 → M4 修 = 26 → M5 一條龍 = 28
 //              → M5 修 = 32 → 側欄說謊修正 + roboflow = 37
-//              → roboflow 安全性修正（跳脫 ×2 / split 值域 / 天花板閘門）= 41 條） ----------
+//              → roboflow 安全性修正（跳脫 ×2 / split 值域 / 天花板閘門）= 41
+//              → 標註器第四分頁 = 50 條；**條數以畫面最後一行印的為準**） ----------
 if (new URLSearchParams(location.search).get('selftest')){
   $('#app').hidden = true; const out = $('#selftest'); out.hidden = false;
   const lines = []; let fail = 0;
@@ -2056,6 +2370,39 @@ if (new URLSearchParams(location.search).get('selftest')){
   ok(`ds.split 一到就補抓影像快照（${hit[0] || '沒抓'}）`,
      hit.some(u=>u.includes('/datasets/dsX/images')));
 
+  // --- 42..48：標註器（第四分頁） ---
+  const lbP = (x,y)=>({x,y});
+  const b1 = lbNorm(lbP(.2,.3), lbP(.6,.7)), b2 = lbNorm(lbP(.6,.7), lbP(.2,.3));
+  ok('lbNorm：反向拖曳（右下往左上）得到同一個框', JSON.stringify(b1) === JSON.stringify(b2));
+  ok(`lbNorm：框中心與寬高算對（${b1.cx}/${b1.cy}/${b1.w}/${b1.h}）`,
+     b1.cx === .4 && b1.cy === .5 && b1.w === .4 && b1.h === .4);
+  const bo = lbNorm(lbP(-.5,-.5), lbP(1.5,1.5));
+  ok('lbNorm：拖出畫布會 clamp 進 0..1（後端的 HUMAN_BOX_INVALID 才不會擋下來）',
+     bo.cx === .5 && bo.cy === .5 && bo.w === 1 && bo.h === 1
+     && bo.cx - bo.w/2 >= 0 && bo.cx + bo.w/2 <= 1);
+  ok('lbNorm：手抖點一下不產生 0 寬的框（回 null）',
+     lbNorm(lbP(.5,.5), lbP(.5005,.5005)) === null && lbNorm(lbP(.5,.5), lbP(.5,.9)) === null);
+
+  const lbWas = {boxes:LB.boxes, classes:LB.classes, sel:LB.sel, cls:LB.cls, id:LB.id};
+  LB.classes = ['a','b']; LB.cls = 0;
+  const lbCand = [{cls:0,cx:.3,cy:.3,w:.2,h:.2},{cls:1,cx:.7,cy:.7,w:.2,h:.2}];
+  lbAdopt(lbCand, 'geometry'); const lbAfter1 = LB.boxes.length;
+  lbAdopt(lbCand, 'geometry'); const lbAfter2 = LB.boxes.length;
+  ok(`lbAdopt 是整包取代不是 append（按兩次一鍵：${lbAfter1} → ${lbAfter2}）`, lbAfter1 === 2 && lbAfter2 === 2);
+  ok('採用候選框只留後端要的五個欄位（不把 why / rule 一起送出去）',
+     LB.boxes.every(b => Object.keys(b).sort().join() === 'cls,cx,cy,h,w'));
+
+  LB.sel = 1; lbDraw();
+  const lbRects = $('#lb-ov').querySelectorAll('rect');
+  ok(`lbDraw：${LB.boxes.length} 個框畫出 ${lbRects.length} 個 rect，選取的那個帶 .on`,
+     lbRects.length === 2 && lbRects[1].classList.contains('on') && !lbRects[0].classList.contains('on'));
+  LB.boxes = LB.boxes.filter((_,i)=>i !== 1); LB.sel = -1; lbDraw();
+  ok('刪一個框 → rect 跟著少一個（畫面不會留下幽靈框）',
+     $('#lb-ov').querySelectorAll('rect').length === 1);
+  ok('類別色：不同 cls 不同色、超出調色盤會循環、負數不會壞掉',
+     lbColor(0) !== lbColor(1) && lbColor(0) === lbColor(6) && lbColor(-1) === lbColor(5));
+  Object.assign(LB, lbWas); lbDraw();
+
   resetData();
   const finish = ()=>{
     out.textContent = lines.join('\n')
@@ -2085,7 +2432,7 @@ if (new URLSearchParams(location.search).get('selftest')){
     finish();
   })();
 
-  failSafe.then(()=> fetch(API+'/api/v1/stages').then(r=>r.json()).then(j=>{
+  const stageChk = failSafe.then(()=> fetch(API+'/api/v1/stages').then(r=>r.json()).then(j=>{
     const back = j.stages || [], pipe = j.pipeline || [];
     const diff = [];
     if (back.length !== STAGES.length) diff.push(`格數 ${back.length} ≠ ${STAGES.length}`);
@@ -2103,6 +2450,27 @@ if (new URLSearchParams(location.search).get('selftest')){
     ok(`GET /api/v1/stages 抓得到（${e}）—— 這條要從 uvicorn 開，不是 file://`, false);
     finish();
   }));
+
+  // --- 最後一條：換 dataset 要先清空影像池 ---
+  // 實測踩到：`fetchImages()` 是 upsert（它本來的工作是重連補圖，不是換資料集），
+  // 換 ds 不清的話舊的 120 張還在 IMAGES 裡，lbSync() 抓到的第一張是**上一個 ds 的 id**，
+  // 打 `/datasets/<新ds>/human/boxes/<舊id>` → 404 IMAGE_NOT_FOUND（畫面上是一條紅橫幅）。
+  stageChk.then(async ()=>{
+    const realFetch3 = window.fetch, dsWas3 = DS, runWas3 = RUN;
+    resetData();
+    IMAGES = [{id:'old1', name:'old1.png', cls:[], counts:{}}]; IDX.set('old1', 0);
+    window.fetch = (u)=> Promise.resolve({ok:true, json:()=> Promise.resolve(
+      String(u).includes('/images?')
+        ? {offset:0, total:1, results:[{id:'new1', name:'new1.png', annotations:{count:0, classes:{}}}]}
+        : {classes:[], boxes:[], available:{auto:[], dataset:[]}})});
+    RUN = null;
+    $('#lb-ds').innerHTML = '<option value="dsNEW">dsNEW</option>'; $('#lb-ds').value = 'dsNEW';
+    try{ await $('#lb-load').onclick(); }
+    finally{ window.fetch = realFetch3; }
+    ok(`換 dataset 前會清空影像池（只剩新 ds 的 ${IMAGES.length} 張、不是混兩批）`,
+       IMAGES.length === 1 && IMAGES[0].id === 'new1');
+    DS = dsWas3; RUN = runWas3; resetData(); finish();
+  });
 }
 </script>
 </body>

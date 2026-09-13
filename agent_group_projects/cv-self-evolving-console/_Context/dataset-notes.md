@@ -569,9 +569,16 @@ demo / `labels:"auto"` 不受影響：那條路的 `labels.json` 裝的是機器
 封印的是答案，不是像素。Roboflow 的 jpg 在這裡轉成 png（契約 §8.8 寫死 `image/png`）；
 原本就是 png 且不縮圖時一個位元組都不動，所以 demo 的 ETag 沒變。
 
-### 17.6 🔒 契約缺口：`labels:"human"` 生不出合法的 class 真相表（要 console-owner 裁決）
+### 17.6 🔒 契約缺口：`labels:"human"` 生不出合法的 class 真相表 ✅ 已批准並落地（2026-09-12）
 
-這是這一輪唯一沒做完的事，**刻意停在那裡**而不是硬塞。
+> **結案**：console-owner 照下面這份請求批了 §12 變更 —— schema 加 `class_source`，
+> `"human"` 時放寬 `nc` / `names` / `cluster_stats`（契約變更紀錄 2026-09-12 那三條）。
+> 實作：`_refuse_human_class_table()` → `_freeze_human_class_table()`（不分群、不呼叫 LLM、
+> 順手寫 `clusters.json` 當分層鍵，落檔的每一行 `cls` 仍以框自己的為準）。
+> 實跑 r149 `labels:"human"` s01→s04 全綠（train 24 / valid 6 / anchor 10 / sealed 20、0 未指派）。
+> 以下原文保留當教材：一個「停在那裡不硬塞」的契約缺口長什麼樣。
+
+這是那一輪唯一沒做完的事，**刻意停在那裡**而不是硬塞。
 
 - **(a) 要改哪一條**：`_Context/class_table.schema.json` 🔒 的 `nc`（`minimum:3 maximum:6`）、
   `names`（`minItems:3`、`items.enum` 六個固定詞）、`cluster_stats.required = [k, silhouette, clusters]`
