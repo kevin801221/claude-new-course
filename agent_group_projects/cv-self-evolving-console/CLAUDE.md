@@ -91,6 +91,30 @@
     快取鍵加 id 指紋（原本 limit=60 的 run 掛的是整份 index 289 張的數字，重疊 0 張）。
   - **卡片的 split 值域補齊**：前端白名單 → `train/valid/anchor/sealed`（+ 手動指派的 `test`），
     契約 §8.7 明列這組值。前端 `?selftest=1` **37 → 41 條**。
+- **標註器 + `labels:"human"` ✅（2026-09-12）**：console 第四個分頁「標註器 · 人工圈」——
+  domain 專家在圖上拖曳畫框、數字鍵選類別、Backspace 刪框，或一鍵讓**三種現成來源**先圈：
+  `import`（資料集自帶的人工 GT）、`geometry`（連通分量，免費離線）、`vlm`（`claude -p` 用 Read
+  看圖回框，實測單張 29 秒 / **折算** $0.196 —— 訂閱制走用量不逐次扣款，那個 $ 是折算值）。一鍵產的是候選，按「存這張」才落檔到
+  `01-raw-data/datasets/<ds>/labels_human.json`（不覆蓋 auto 的 `labels.json`）。
+  後端五支端點在契約 §8.11，事件 `label.human`（`run_id` 選填 —— **標註不必先開 run**）。
+  ⭐ 連帶把卡了整個專案的 `labels:"human"` 打通：走 §12 放寬 🔒 `class_table.schema.json`
+  （新增選填 `class_source:"cluster"|"human"`，缺席視同 cluster；human 時 `nc>=1`、名字自由、
+  `cluster_stats` 允許 null，cluster 那條路的嚴格約束原封搬進 `allOf` 分支）。
+  實測：jsonschema 六組如預期、r149 `labels:"human"` s01→s04 全綠、r150 用**真人工框**跑完整條龍。
+  前端 `?selftest=1` 42 → **51 條**；`uv run python -m src.autolabel.human` 8 組自檢。
+- **磁碟清理 ✅（2026-09-13）**：`04-experiments/` **3.1 GB → 680 MB**。刪的是
+  探針權重（`*/probe-*/weights/*.pt`，136 檔）與已完成 run 的 `last.pt`（54 檔）——
+  探針的分數與選擇理由留在 `probe.json`（34 份還在），54 份 `best.pt` 一個沒動。
+  DESIGN:64 本來就規劃「每輪結束刪非 best 權重」，一直沒做，現在做了一次。
+  ⚠️ 清完發現 pytest 從 26 掉到 25：`_Context/class_table.json`（3 類）與 `02-dataset/`
+  （人工標註那輪的 1 類）對不上 —— 不是清理造成的，是這個檔**每跑一輪就被覆寫、卻又進 git**。
+  已重跑 `run_all.py --stages s01,s03,s02,s04`（0.9 秒）讓兩邊一致，26 passed 回來。
+  **這個檔要不要繼續進 git 是懸而未決的設計問題**（見下面「下一步」）。
+- **下一步（未動工，已寫成計畫）**：`_Context/PLAN-workspaces.md` ——
+  資料集市集（Roboflow Universe / HuggingFace / Kaggle 三個搜尋 API **都已實測可用**）
+  + 資料卡 + Y/N 下載 + 批量上傳 + **多 workspace 隔離**。
+  估 5–6 天，最大的兩塊是 W3（workspace 重構，現有 36+13+17 處全域路徑）與
+  W6（HF/Kaggle 的格式轉換）。檔內有「下一個 session 從這裡開始」與 `/dispatch` 派工表。
 - **M6 以後一律不准提前做**。看到 DESIGN 裡 M6–M8 的細節，那是後續里程碑的規格，讀了不要現在動手。
 
 M1 驗收（唯一標準，零 GPU / 零 Roboflow / 零 LLM / 零網路、全程 < 90 秒）：
