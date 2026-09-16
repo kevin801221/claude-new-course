@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Subagents (子代理) 動態互動教學指南 | 04-subagents</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          },
+          colors: {
+            subagent: {
+              main: '#38bdf8',
+              reviewer: '#a855f7',
+              tester: '#10b981',
+              debugger: '#f43f5e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #151a24 0%, #090d13 100%);
+      color: #e2e8f0;
+    }
+    .glass-panel {
+      background: rgba(18, 23, 33, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-agent {
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.25);
+    }
+    .glow-subagent {
+      box-shadow: 0 0 25px rgba(168, 85, 247, 0.3);
+    }
+    .dash-pipe {
+      stroke-dasharray: 6;
+      animation: dashMove 1.2s linear infinite;
+    }
+    @keyframes dashMove {
+      to {
+        stroke-dashoffset: -12;
+      }
+    }
+    /* 自訂滾動條 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d13;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #272f3d;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased selection:bg-purple-500/30 selection:text-purple-300">
+
+  <!-- 頂部導航 -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-400 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-purple-500/25">
+          🤖
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">Chapter 04</span>
+            <h1 class="text-xl font-bold tracking-tight text-white">Subagents (子代理) 蜂巢架構與派工教學台</h1>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">上下文隔離 (Context Isolation) ‧ 工具權限白名單 ‧ 平行專家分工</p>
+        </div>
+      </div>
+
+      <!-- 快捷情境切換 -->
+      <div class="flex items-center space-x-2 text-xs">
+        <span class="text-slate-400 mr-2 hidden sm:inline">課堂情境演練：</span>
+        <button onclick="setMode('subagents')" id="btn-mode-subagents" class="px-3.5 py-1.5 rounded-lg font-bold transition-all bg-purple-600 text-white shadow-md shadow-purple-500/20">
+          ✨ Subagents 分工模式 (推薦)
+        </button>
+        <button onclick="setMode('monolithic')" id="btn-mode-monolithic" class="px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300">
+          ❌ 單一 Agent 蠻幹 (痛點對照)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 教學心法橫幅：主包商與外包工班模型 -->
+    <div class="glass-panel rounded-2xl p-5 relative border-l-4 border-l-purple-500">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-purple-400 font-bold text-sm">💡 教學心法：主包工程師與專業工班模型</span>
+            <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">學生秒懂的核心概念</span>
+          </div>
+          <p class="text-sm text-slate-300 leading-relaxed">
+            告訴學生：<strong>主代理 (Main Agent)</strong> 就像工地的<strong>總工程師</strong>，負責掌握全域架構與最終決策。他不需要親自讀 50 個檔案來做 Review，而是派遣<strong>「專屬子代理 (Subagent)」</strong>在獨立封閉的工作間裡施工。
+            子代理只攜帶被允許的工具 (<code class="text-purple-300 font-mono">tools</code> 白名單)，做完只交回<strong>精簡驗收報告</strong>，確保總工程師的辦公桌 (Context 記憶體) 永遠乾淨清爽！
+          </p>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button id="btn-play" onclick="togglePlay()" class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white shadow-lg shadow-purple-500/25 transition-all active:scale-95">
+            <span id="play-icon">▶</span> <span id="play-text">播放派工流程</span>
+          </button>
+          <button onclick="stepForward()" class="px-3.5 py-2.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all active:scale-95" title="單步解說（講課時按步講解最實用）">
+            ⏭ 單步解說
+          </button>
+          <button onclick="resetSimulation()" class="px-3.5 py-2.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-all" title="重置流程">
+            🔄 重置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上半部：Context 記憶體量與分工架構動態可視化 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- 左側：記憶體/Token 消耗震撼對比圖 (學生看這個最有感！) -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🧠 上下文視窗負載 (Context Budget)</span>
+            </h3>
+            <span id="mode-indicator" class="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">
+              Subagent 模式
+            </span>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <!-- 主代理 Token 條 -->
+            <div>
+              <div class="flex justify-between text-xs mb-1 font-mono">
+                <span class="text-slate-300 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-sky-400"></span> 主代理 (Main Context)
+                </span>
+                <span id="main-token-text" class="text-sky-400 font-bold">8,420 / 200,000 Tokens (4%)</span>
+              </div>
+              <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                <div id="main-token-bar" class="h-full bg-gradient-to-r from-sky-500 to-blue-500 rounded-full transition-all duration-500" style="width: 4.2%;"></div>
+              </div>
+              <p id="main-token-desc" class="text-[11px] text-slate-400 mt-1">主記憶體維持清爽，完全沒有雜亂的中間輸出！</p>
+            </div>
+
+            <!-- 子代理沙盒 Token 條 (僅 Subagent 模式顯示) -->
+            <div id="subagent-token-container">
+              <div class="flex justify-between text-xs mb-1 font-mono">
+                <span class="text-slate-300 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-purple-400"></span> 子代理獨立沙盒 (Isolated Sandbox)
+                </span>
+                <span id="sub-token-text" class="text-purple-400 font-bold">48,900 Tokens (沙盒內消耗，結束即銷毀)</span>
+              </div>
+              <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                <div id="sub-token-bar" class="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500" style="width: 24.5%;"></div>
+              </div>
+              <p class="text-[11px] text-purple-300/80 mt-1">✨ 驚人優勢：這 4.8 萬個 token 的中間雜訊被安全隔離，不會污染主對話！</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 總結效益提示 -->
+        <div id="benefit-box" class="mt-4 p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 text-xs text-purple-200 leading-relaxed">
+          <strong>🎯 教學重點：</strong>如果把審查 30 個檔案、執行百次 grep 的髒活都讓主 Agent 做，主對話會立刻爆衝到 15 萬 tokens，導致 AI 出現遺忘與幻覺。用 Subagent 就能<strong>零負擔回收精華結果</strong>！
+        </div>
+      </div>
+
+      <!-- 右側 (佔 2 欄)：動態派工架構圖 (SVG + 互動節點) -->
+      <div class="glass-panel rounded-2xl p-5 lg:col-span-2 relative flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>📡 蜂巢調度指揮室 (Live Multi-Agent Architecture)</span>
+            </h3>
+            <span id="step-badge" class="text-xs font-mono text-slate-400">
+              當前階段：待命中
+            </span>
+          </div>
+
+          <!-- 動態連接圖 -->
+          <div class="relative py-8 my-2">
+            <!-- SVG 連線 -->
+            <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;">
+              <!-- 主代理 -> 子代理 1 (Reviewer) -->
+              <path id="path-to-reviewer" d="M 120 120 Q 260 40 420 50" fill="transparent" stroke="#334155" stroke-width="2.5" stroke-dasharray="6" />
+              <!-- 主代理 -> 子代理 2 (Tester) -->
+              <path id="path-to-tester" d="M 120 120 Q 260 190 420 190" fill="transparent" stroke="#334155" stroke-width="2.5" stroke-dasharray="6" />
+            </svg>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+              
+              <!-- 主代理節點 -->
+              <div class="flex flex-col items-center justify-center">
+                <div id="node-main" class="w-56 p-4 rounded-2xl bg-slate-900 border-2 border-sky-500/40 text-center transition-all duration-300 shadow-lg">
+                  <div class="w-14 h-14 mx-auto rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 text-2xl mb-2">
+                    👑
+                  </div>
+                  <div class="text-xs font-mono text-sky-400 font-bold uppercase">Main Agent</div>
+                  <div class="text-sm font-bold text-white">總體指揮決策中心</div>
+                  <div class="text-[11px] text-slate-400 mt-1">擁有全部工具（Edit, Write, Bash）</div>
+                  <div id="status-main-agent" class="mt-3 px-2 py-0.5 rounded text-[10px] font-mono bg-sky-500/20 text-sky-300">
+                    等待使用者指令
+                  </div>
+                </div>
+              </div>
+
+              <!-- 子代理工作群 (平行沙盒) -->
+              <div class="space-y-4">
+                
+                <!-- 子代理 1: Clean Code Reviewer -->
+                <div id="node-sub-reviewer" class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 transition-all duration-300">
+                  <div class="flex items-start justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 text-lg">
+                        🔍
+                      </div>
+                      <div>
+                        <div class="text-xs font-mono text-purple-400 font-bold">clean-code-reviewer</div>
+                        <div class="text-sm font-bold text-white">Clean Code 審查專家</div>
+                      </div>
+                    </div>
+                    <span id="badge-sub-reviewer" class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-500">
+                      待命
+                    </span>
+                  </div>
+                  <div class="mt-2 text-xs text-slate-400 flex items-center gap-2">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-slate-300">
+                      只允許工具：Read, Grep, Glob
+                    </span>
+                    <span class="text-[10px] text-rose-400">🚫 禁止寫檔</span>
+                  </div>
+                  <div id="sub-reviewer-activity" class="mt-2 text-[11px] font-mono text-purple-300 hidden">
+                    > 正在掃描 src/ 目錄下的 24 個檔案...
+                  </div>
+                </div>
+
+                <!-- 子代理 2: Test Engineer -->
+                <div id="node-sub-tester" class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 transition-all duration-300">
+                  <div class="flex items-start justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-lg">
+                        🧪
+                      </div>
+                      <div>
+                        <div class="text-xs font-mono text-emerald-400 font-bold">test-engineer</div>
+                        <div class="text-sm font-bold text-white">單元測試工程專家</div>
+                      </div>
+                    </div>
+                    <span id="badge-sub-tester" class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-500">
+                      待命
+                    </span>
+                  </div>
+                  <div class="mt-2 text-xs text-slate-400 flex items-center gap-2">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-slate-300">
+                      只允許工具：Read, Bash(pytest)
+                    </span>
+                    <span class="text-[10px] text-emerald-400">🛡️ 專注覆蓋率</span>
+                  </div>
+                  <div id="sub-tester-activity" class="mt-2 text-[11px] font-mono text-emerald-300 hidden">
+                    > 正在執行 pytest 與邊界條件測試...
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- 即時白話口述橫幅 (講師照唸) -->
+        <div id="narration-box" class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-start gap-3">
+          <div class="text-2xl mt-0.5" id="narration-icon">🎬</div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold font-mono text-purple-400 uppercase" id="narration-title">步驟 0：準備出發</span>
+              <span class="text-xs text-slate-500" id="narration-subtitle">[點擊「播放派工流程」或「單步解說」看子代理如何運作]</span>
+            </div>
+            <p class="text-sm text-slate-200" id="narration-text">
+              使用者對 Claude 說：『請幫我審查專案所有的程式碼是否符合 Clean Code，並且撰寫測試驗證！』現在讓我們來看看派工流程。
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 下半部：即時資料與真實程式碼同步對照 (3 欄佈局) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- 欄位 1: 主代理派工指令 (Task Prompt & Context) -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+            <h3 class="text-sm font-bold text-white">1. 主代理派工指令 (Delegation)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">Main → Subagent</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">主代理使用 <code class="text-sky-300">Task</code> 工具產出子代理，並指定專用提示詞：</p>
+        <div class="relative flex-1">
+          <pre id="code-dispatch" class="w-full h-64 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-sky-300 overflow-auto leading-relaxed">// 主代理自動調用 Task 工具：
+Task(
+  subagent_type: "clean-code-reviewer",
+  task_prompt: "審查最近新增的 3 個模組，特別針對函式行數、命名原則與例外處理，產出 Critical/High 等級報告。"
+)</pre>
+        </div>
+        <div class="mt-3 text-[11px] text-slate-500">
+          💡 主代理指派任務後，即刻切換為「等待回報」狀態，不會參與中間的每一步細節。
+        </div>
+      </div>
+
+      <!-- 欄位 2: 子代理定義檔 (真實 Markdown Frontmatter) -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+            <h3 class="text-sm font-bold text-white">2. 子代理設定檔 (Markdown)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-purple-400">clean-code-reviewer.md</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">位於 <code class="text-purple-300">.claude/agents/</code> 目錄下的專用角色規範：</p>
+        <div class="relative flex-1">
+          <pre id="code-agent-definition" class="w-full h-64 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-purple-300 overflow-auto leading-relaxed">---
+name: clean-code-reviewer
+description: Clean Code 原則落實專家。
+tools: Read, Grep, Glob, Bash
+model: inherit
+---
+
+# Clean Code 審查代理
+你是一位資深程式碼審查員，專精於 Clean Code 原則。
+- 函式少於 20 行
+- 單一職責原則 (SRP)
+- 絕不使用魔術數字
+- 發現違規時，附上檔案路徑與行號！</pre>
+        </div>
+        <div class="mt-3 text-[11px] text-slate-500">
+          🔒 <strong>權限隔離亮點：</strong>沒有給予 <code class="text-rose-400 font-mono">Edit</code> 或 <code class="text-rose-400 font-mono">Write</code> 工具，保證子代理只看不改！
+        </div>
+      </div>
+
+      <!-- 欄位 3: 驗收報告 (回傳給主代理的乾淨精華) -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <h3 class="text-sm font-bold text-white">3. 驗收回傳報告 (Clean Report)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">Subagent → Main</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">子代理在沙盒跑完 50,000 tokens 後，<strong>只回傳精華重點</strong>：</p>
+        <div class="relative flex-1">
+          <pre id="code-result-report" class="w-full h-64 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-auto leading-relaxed"># Clean Code 審查報告完成
+
+【違規項目發現】
+1. src/auth/token.ts:42
+   - 級別：High
+   - 問題：函式超過 58 行且承擔過多職責。
+   - 建議：將 JWT 驗證與資料庫查詢解耦。
+
+2. src/api/user.ts:15
+   - 級別：Medium
+   - 問題：使用魔術數字 86400000。
+   - 建議：提取為常數 TOKEN_EXPIRATION_MS。</pre>
+        </div>
+        <div class="mt-3 text-[11px] text-slate-500">
+          🎉 <strong>大功告成：</strong>主代理吸收這份 300 字報告，直接向使用者回報或開始精準重構！
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 底部：三大子代理高頻應用情境整理 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="glass-panel p-5 rounded-xl space-y-2 border-t-2 border-t-purple-500">
+        <h4 class="font-bold text-sm text-white flex items-center gap-2">
+          <span>🛡️ 1. 安全與唯讀審查員</span>
+        </h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          限制工具為 <code class="text-purple-300 font-mono">Read, Grep</code>，負責掃描密碼外洩、SQL Injection 或資安弱點。即使 AI 幻覺也不可能改動任何現有程式碼。
+        </p>
+      </div>
+
+      <div class="glass-panel p-5 rounded-xl space-y-2 border-t-2 border-t-emerald-500">
+        <h4 class="font-bold text-sm text-white flex items-center gap-2">
+          <span>🧪 2. 測試與驗證工程師</span>
+        </h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          在獨立沙盒中執行 <code class="text-emerald-300 font-mono">pytest</code> 或 <code class="text-emerald-300 font-mono">npm test</code>，產生上千行測試輸出也不會塞爆主代理的上下文記憶體！
+        </p>
+      </div>
+
+      <div class="glass-panel p-5 rounded-xl space-y-2 border-t-2 border-t-sky-500">
+        <h4 class="font-bold text-sm text-white flex items-center gap-2">
+          <span>⚡ 3. 平行分工 (Parallel Execution)</span>
+        </h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          主代理可同時派發「前端審查」與「後端測試」，兩位子代理在各自的沙盒同時奔跑，節省 50% 以上的等待時間。
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // ==========================================
+    // 流程狀態與腳本
+    // ==========================================
+    const SUBAGENT_STEPS = [
+      {
+        title: "步驟 1：主代理收到任務",
+        subtitle: "[使用者提問與任務分析]",
+        icon: "💬",
+        text: "使用者要求：『請審查整包專案的程式碼並跑測試！』主代理分析任務過於龐大，如果親自閱讀全部檔案，會塞爆 Context Window，因此決定啟動 Subagent 分工機制！",
+        activeNode: 'main',
+        mainTokens: "8,420 (4%)",
+        mainWidth: "4.2%",
+        subTokens: "0 Tokens (未啟動)",
+        subWidth: "0%",
+        pipeActive: false,
+        dispatchCode: `// 決定分派兩位子代理平行作業：
+Task(subagent: "clean-code-reviewer")
+Task(subagent: "test-engineer")`,
+        reportText: "（等待子代理產出報告...）"
+      },
+      {
+        title: "步驟 2：派發任務與沙盒啟動",
+        subtitle: "[Context 隔離與工具權限注入]",
+        icon: "🚀",
+        text: "主代理透過 Task 工具派發子代理！clean-code-reviewer 帶著專屬的「唯讀工具箱 (Read, Grep)」在全新乾淨的沙盒中啟動！",
+        activeNode: 'sub-reviewer',
+        mainTokens: "8,650 (4.3%)",
+        mainWidth: "4.3%",
+        subTokens: "12,400 Tokens (沙盒內累積中...)",
+        subWidth: "12%",
+        pipeActive: true,
+        dispatchCode: `Task(
+  subagent_type: "clean-code-reviewer",
+  task_prompt: "掃描近期變更檔案，比對 Clean Code 規則並標記行號。"
+)`,
+        reportText: "子代理正在閱讀 18 個來源檔案，分析函式行數與職責分離..."
+      },
+      {
+        title: "步驟 3：子代理獨立奔跑 (沙盒高負載)",
+        subtitle: "[深層運算中，完全不影響主線]",
+        icon: "⚡",
+        text: "子代理在自己的沙盒裡跑了 4 萬多個 tokens，翻找了幾千行程式碼與 diff。注意看！主代理的 Context 完全沒有增加，依然維持 8k tokens 的極度清爽！",
+        activeNode: 'sub-reviewer',
+        mainTokens: "8,650 (4.3%)",
+        mainWidth: "4.3%",
+        subTokens: "48,900 Tokens (高負載運算完畢)",
+        subWidth: "24.5%",
+        pipeActive: true,
+        dispatchCode: `// 子代理正在執行的檢查：
+1. git diff --stat
+2. grep -rn "function" src/
+3. 檢查函式長度與參數數量`,
+        reportText: "【分析完成】已整理出 2 項關鍵重構點，準備打包回傳主代理..."
+      },
+      {
+        title: "步驟 4：精華報告回傳與沙盒銷毀",
+        subtitle: "[Zero Context Pollution 達成！]",
+        icon: "🎉",
+        text: "子代理將 4.8 萬 tokens 的中間髒活提煉為 300 字精簡報告回傳給主代理，隨後沙盒立即銷毀！主代理吸收精華報告，準備向使用者提出精準改進建議！",
+        activeNode: 'main',
+        mainTokens: "9,800 (4.9%)",
+        mainWidth: "4.9%",
+        subTokens: "0 Tokens (沙盒已成功銷毀回收)",
+        subWidth: "0%",
+        pipeActive: false,
+        dispatchCode: `// 主代理收到 Task 回傳結果：
+Received: Clean Code Report (Tokens: +1,150)
+Status: COMPLETED`,
+        reportText: `# Clean Code 審查報告 (摘要)
+1. src/auth/token.ts:42 -> High: 函式過長 (58 行)
+2. src/api/user.ts:15 -> Medium: 魔術數字未提取
+
+結論：主架構優良，僅需微調 2 處。`
+      }
+    ];
+
+    let currentStep = 0;
+    let isPlaying = false;
+    let playTimer = null;
+    let currentMode = 'subagents';
+
+    function setMode(mode) {
+      currentMode = mode;
+      stopPlay();
+      currentStep = 0;
+
+      const btnSub = document.getElementById('btn-mode-subagents');
+      const btnMono = document.getElementById('btn-mode-monolithic');
+      const ind = document.getElementById('mode-indicator');
+      const subContainer = document.getElementById('subagent-token-container');
+      const benefitBox = document.getElementById('benefit-box');
+
+      if (mode === 'subagents') {
+        btnSub.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-purple-600 text-white shadow-md shadow-purple-500/20";
+        btnMono.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        ind.className = "text-[11px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold";
+        ind.textContent = "Subagent 模式";
+        subContainer.style.display = "block";
+        benefitBox.className = "mt-4 p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 text-xs text-purple-200 leading-relaxed";
+        benefitBox.innerHTML = "<strong>🎯 教學重點：</strong>如果把審查 30 個檔案的髒活都讓主 Agent 做，主對話會爆衝到 15 萬 tokens，導致 AI 遺忘。用 Subagent 就能<strong>零負擔回收精華結果</strong>！";
+        renderStep();
+      } else {
+        btnMono.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-rose-600 text-white shadow-md shadow-rose-500/20";
+        btnSub.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        ind.className = "text-[11px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold";
+        ind.textContent = "單一 Agent 蠻幹模式";
+        subContainer.style.display = "none";
+        benefitBox.className = "mt-4 p-3 rounded-xl bg-rose-950/30 border border-rose-500/30 text-xs text-rose-200 leading-relaxed";
+        benefitBox.innerHTML = "⚠️ <strong>災難現場：</strong>沒有使用 Subagent！主 Agent 把所有 grep 搜尋、檔案原始碼通通塞在同一個視窗，<strong>Tokens 飆破 16 萬</strong>，AI 開始胡言亂語、忘記前面講過的話！";
+
+        // 模擬災難狀態
+        document.getElementById('main-token-text').textContent = "168,400 / 200,000 Tokens (84% 瀕臨爆滿！)";
+        document.getElementById('main-token-text').className = "text-rose-400 font-bold";
+        document.getElementById('main-token-bar').style.width = "84.2%";
+        document.getElementById('main-token-bar').className = "h-full bg-gradient-to-r from-amber-500 to-rose-600 rounded-full transition-all duration-500";
+        document.getElementById('main-token-desc').textContent = "😱 上下文嚴重污染！AI 速度極慢且開始遺忘使用者的核心需求！";
+
+        document.getElementById('narration-title').textContent = "單一 Agent 痛點展示";
+        document.getElementById('narration-subtitle').textContent = "[Context Explosion 記憶體大爆炸]";
+        document.getElementById('narration-icon').textContent = "💥";
+        document.getElementById('narration-text').textContent = "如果不用 Subagent，所有 30 個檔案的全文全部塞在主對話中，一下子耗光 16 萬 Token，既浪費錢又容易產生幻覺。這就是為什麼需要學習 Subagent！";
+      }
+    }
+
+    function renderStep() {
+      if (currentMode !== 'subagents') return;
+
+      const s = SUBAGENT_STEPS[currentStep];
+
+      // 更新口述
+      document.getElementById('narration-title').textContent = s.title;
+      document.getElementById('narration-subtitle').textContent = s.subtitle;
+      document.getElementById('narration-icon').textContent = s.icon;
+      document.getElementById('narration-text').textContent = s.text;
+      document.getElementById('step-badge').textContent = `階段 ${currentStep + 1} / ${SUBAGENT_STEPS.length}`;
+
+      // 更新 Token 條
+      const mainText = document.getElementById('main-token-text');
+      mainText.textContent = `${s.mainTokens} / 200,000 Tokens`;
+      mainText.className = "text-sky-400 font-bold";
+      document.getElementById('main-token-bar').style.width = s.mainWidth;
+      document.getElementById('main-token-bar').className = "h-full bg-gradient-to-r from-sky-500 to-blue-500 rounded-full transition-all duration-500";
+      document.getElementById('main-token-desc').textContent = "主記憶體維持清爽，完全沒有雜亂的中間輸出！";
+
+      document.getElementById('sub-token-text').textContent = s.subTokens;
+      document.getElementById('sub-token-bar').style.width = s.subWidth;
+
+      // 更新代碼與報告
+      document.getElementById('code-dispatch').textContent = s.dispatchCode;
+      document.getElementById('code-result-report').textContent = s.reportText;
+
+      // 節點高亮
+      const nodeMain = document.getElementById('node-main');
+      const nodeSub = document.getElementById('node-sub-reviewer');
+      const badgeSub = document.getElementById('badge-sub-reviewer');
+      const actSub = document.getElementById('sub-reviewer-activity');
+      const pathToReviewer = document.getElementById('path-to-reviewer');
+
+      if (s.activeNode === 'sub-reviewer') {
+        nodeMain.className = "w-56 p-4 rounded-2xl bg-slate-900 border border-slate-700 text-center opacity-70";
+        nodeSub.className = "p-4 rounded-2xl bg-purple-950/40 border-2 border-purple-500 glow-subagent transition-all duration-300";
+        badgeSub.className = "px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/30 text-purple-200 animate-pulse font-bold";
+        badgeSub.textContent = "運算中 ⚡";
+        actSub.classList.remove('hidden');
+        pathToReviewer.setAttribute('stroke', '#a855f7');
+        pathToReviewer.classList.add('dash-pipe');
+      } else {
+        nodeMain.className = "w-56 p-4 rounded-2xl bg-slate-900 border-2 border-sky-500/60 glow-agent text-center transition-all duration-300";
+        nodeSub.className = "p-4 rounded-2xl bg-slate-900/90 border border-slate-800 transition-all duration-300";
+        badgeSub.className = "px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-500";
+        badgeSub.textContent = currentStep === 3 ? "任務完成 ✓" : "待命";
+        actSub.classList.add('hidden');
+        pathToReviewer.setAttribute('stroke', '#334155');
+        pathToReviewer.classList.remove('dash-pipe');
+      }
+    }
+
+    function stepForward() {
+      if (currentMode !== 'subagents') setMode('subagents');
+      if (currentStep < SUBAGENT_STEPS.length - 1) {
+        currentStep++;
+      } else {
+        currentStep = 0;
+      }
+      renderStep();
+    }
+
+    function resetSimulation() {
+      stopPlay();
+      currentStep = 0;
+      if (currentMode !== 'subagents') setMode('subagents');
+      renderStep();
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        stopPlay();
+      } else {
+        startPlay();
+      }
+    }
+
+    function startPlay() {
+      if (currentMode !== 'subagents') setMode('subagents');
+      isPlaying = true;
+      document.getElementById('play-icon').textContent = "⏸";
+      document.getElementById('play-text').textContent = "暫停播放";
+      playTimer = setInterval(() => {
+        if (currentStep < SUBAGENT_STEPS.length - 1) {
+          currentStep++;
+          renderStep();
+        } else {
+          stopPlay();
+        }
+      }, 3000);
+    }
+
+    function stopPlay() {
+      isPlaying = false;
+      clearInterval(playTimer);
+      document.getElementById('play-icon').textContent = "▶";
+      document.getElementById('play-text').textContent = "播放派工流程";
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderStep();
+    });
+  </script>
+</body>
+</html>

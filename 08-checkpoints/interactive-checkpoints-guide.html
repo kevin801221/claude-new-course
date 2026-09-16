@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Checkpoints (檢查點與時光倒流回滾) 動態互動教學指南 | 08-checkpoints</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          },
+          colors: {
+            rewind: {
+              accent: '#f59e0b',
+              undo: '#ef4444',
+              safe: '#10b981'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #201a14 0%, #0c0a07 100%);
+      color: #e2e8f0;
+    }
+    .glass-panel {
+      background: rgba(28, 22, 17, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .timeline-node {
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased selection:bg-amber-500/30 selection:text-amber-300">
+
+  <!-- 頂部導航 -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-amber-500/20">
+          ⏪
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Chapter 08</span>
+            <h1 class="text-xl font-bold tracking-tight text-white">Checkpoints (檢查點與時光倒流回滾) 教學台</h1>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">免除怕把專案改爛的恐懼 ‧ /rewind 與 /undo ‧ 快照隔離與無痛復原</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 text-xs">
+        <button onclick="triggerBreak()" class="px-3 py-1.5 rounded-lg font-medium transition-all bg-rose-950/80 border border-rose-500/40 hover:bg-rose-900 text-rose-300">
+          💥 模擬 AI 改爛程式碼 (出現 Bug)
+        </button>
+        <button onclick="rewindToSafe()" class="px-3.5 py-1.5 rounded-lg font-bold transition-all bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20">
+          ⏪ 執行 /rewind (時光倒流)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 教學心法：登山安全繩比喻 -->
+    <div class="glass-panel rounded-2xl p-5 relative border-l-4 border-l-amber-500">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-amber-400 font-bold text-sm">💡 教學心法：攀岩者的「安全繩索 (Checkpoints)」與時光倒帶機</span>
+            <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">消除學生對 AI 改爛代碼的恐懼</span>
+          </div>
+          <p class="text-sm text-slate-300 leading-relaxed">
+            初學者讓 AI 改程式碼時最怕：「萬一它把本來好的功能改爛怎麼辦？」。
+            <strong>Claude Code 每次動手前，都會在背後自動打一個「時空錨點 (Checkpoint)」</strong>！
+            只要輸入 <code class="text-amber-300 font-mono">/rewind</code> 或 <code class="text-amber-300 font-mono">/undo</code>，就能<strong>一秒讓檔案變更與對話歷史全部倒帶回前一個健康的瞬間</strong>！
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上半部：時空軸動態回滾展示 (Interactive Timeline) -->
+    <div class="glass-panel rounded-2xl p-6 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold tracking-wider uppercase text-slate-400 flex items-center gap-2">
+          <span>時空快照時間軸 (Interactive Snapshot Timeline)</span>
+        </h3>
+        <span id="timeline-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          當前處於：Checkpoint 1 (穩定版本)
+        </span>
+      </div>
+
+      <!-- 4 步時間軸 -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 py-4 relative">
+        
+        <!-- 節點 1: 初始穩定 -->
+        <div id="node-cp-1" class="p-4 rounded-xl border-2 border-emerald-500 bg-emerald-950/30 timeline-node">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-emerald-400 font-bold">CHECKPOINT 1</span>
+            <span class="text-base">🟢</span>
+          </div>
+          <h4 class="text-sm font-bold text-white mt-1">初始乾淨版本</h4>
+          <p class="text-xs text-slate-400 mt-1">功能全部正常通過測試</p>
+          <div class="mt-3 text-[10px] font-mono text-emerald-300">git: 8a42b10 (SAFE)</div>
+        </div>
+
+        <!-- 節點 2: 使用者要求重構 -->
+        <div id="node-cp-2" class="p-4 rounded-xl border border-slate-800 bg-slate-900/60 timeline-node">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-slate-400 font-bold">CHECKPOINT 2</span>
+            <span class="text-base">💬</span>
+          </div>
+          <h4 class="text-sm font-bold text-white mt-1">要求重構認證模組</h4>
+          <p class="text-xs text-slate-400 mt-1">提問：『將登入改為 JWT』</p>
+          <div class="mt-3 text-[10px] font-mono text-slate-500">Auto-Snapshot taken</div>
+        </div>
+
+        <!-- 節點 3: AI 修改造成 Bug (災難) -->
+        <div id="node-cp-3" class="p-4 rounded-xl border border-slate-800 bg-slate-900/60 timeline-node">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono text-slate-400 font-bold">STEP 3 (MODIFIED)</span>
+            <span id="bug-icon" class="text-base">⚪</span>
+          </div>
+          <h4 class="text-sm font-bold text-white mt-1" id="step-3-title">等待改動...</h4>
+          <p class="text-xs text-slate-400 mt-1" id="step-3-desc">點擊右上角「模擬改爛」</p>
+          <div id="step-3-status" class="mt-3 text-[10px] font-mono text-slate-500">Pending</div>
+        </div>
+
+        <!-- 節點 4: /rewind 倒帶 -->
+        <div id="node-cp-4" class="p-4 rounded-xl border border-slate-800 bg-slate-900/60 timeline-node flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono text-amber-400 font-bold">REWIND / UNDO</span>
+              <span class="text-base">⏪</span>
+            </div>
+            <h4 class="text-sm font-bold text-white mt-1">時光倒流回滾</h4>
+            <p class="text-xs text-slate-400 mt-1">輸入 /rewind 自動倒回</p>
+          </div>
+          <div class="mt-2 text-[10px] font-mono text-amber-300">一鍵復原檔案 + 歷史</div>
+        </div>
+
+      </div>
+
+      <!-- 講稿橫幅 -->
+      <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-start gap-3 mt-2">
+        <div class="text-2xl mt-0.5" id="narration-icon">🛡️</div>
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold font-mono text-amber-400 uppercase" id="narration-stage">目前狀態：安全錨點已建立</span>
+            <span class="text-xs text-slate-500">[Zero Risk Development]</span>
+          </div>
+          <p class="text-sm text-slate-200" id="narration-text">
+            專案目前運行良好。學生可以放心大膽地讓 Claude Code 進行大型重構或實驗性修改，因為隨時可以按下倒帶！
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下半部：即時程式碼 Diff 對比 (修改前 | 壞掉的程式碼 | /rewind 後的完美復原) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <h3 class="text-sm font-bold text-white">1. 初始程式碼 (正常)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-emerald-400">auth.ts (原始)</span>
+        </div>
+        <pre class="w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-auto leading-relaxed">export function verifyUser(token: string) {
+  if (!token) return false;
+  return db.users.find({ token });
+}</pre>
+      </div>
+
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
+            <h3 class="text-sm font-bold text-white">2. AI 改動後產生的 Bug</h3>
+          </div>
+          <span class="text-[11px] font-mono text-rose-400" id="diff-status-label">未改動</span>
+        </div>
+        <pre id="code-broken" class="w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-400 overflow-auto leading-relaxed">（點擊右上角「模擬改爛」，看 AI 寫出有 Bug 的代碼）</pre>
+      </div>
+
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <h3 class="text-sm font-bold text-white">3. /rewind 倒回結果</h3>
+          </div>
+          <span class="text-[11px] font-mono text-amber-400">時光倒流</span>
+        </div>
+        <pre id="code-restored" class="w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 overflow-auto leading-relaxed">輸入指令：
+> /rewind
+
+系統立即還原：
+✓ Reverted src/auth.ts (14 lines restored)
+✓ Reverted conversation state to Checkpoint 1
+回到出錯前的健康瞬間！</pre>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    function triggerBreak() {
+      document.getElementById('node-cp-3').className = "p-4 rounded-xl border-2 border-rose-500 bg-rose-950/40 timeline-node shadow-lg shadow-rose-500/20";
+      document.getElementById('bug-icon').textContent = "🔴";
+      document.getElementById('step-3-title').textContent = "💥 語法錯誤！測試爆開";
+      document.getElementById('step-3-desc').textContent = "Claude 誤刪了關鍵資料庫連接邏輯！";
+      document.getElementById('step-3-status').textContent = "CRITICAL BUG";
+      document.getElementById('step-3-status').className = "mt-3 text-[10px] font-mono text-rose-400 font-bold";
+
+      document.getElementById('timeline-status-badge').textContent = "狀態：發生錯誤！亟需回滾";
+      document.getElementById('timeline-status-badge').className = "px-2.5 py-0.5 rounded-full text-xs font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold";
+
+      document.getElementById('diff-status-label').textContent = "Syntax Error!";
+      document.getElementById('code-broken').textContent = `export function verifyUser(token: string) {
+  // 錯誤：引用的 jwtConfig 變數未定義！
+  // 導致執行期 TypeError: Cannot read properties of undefined
+  return jwt.verify(token, jwtConfig.secret);
+}`;
+      document.getElementById('code-broken').className = "w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-rose-500/40 text-xs font-mono text-rose-300 overflow-auto leading-relaxed";
+
+      document.getElementById('narration-icon').textContent = "😱";
+      document.getElementById('narration-stage').textContent = "災難發生：AI 改壞了！";
+      document.getElementById('narration-text').textContent = "糟糕！Claude 在重構時漏給了設定變數，單元測試全面掛掉！初學者這時候通常會慌張，但別怕——請點擊右上角「/rewind」！";
+    }
+
+    function rewindToSafe() {
+      document.getElementById('node-cp-4').className = "p-4 rounded-xl border-2 border-amber-500 bg-amber-950/40 timeline-node shadow-lg shadow-amber-500/20";
+      document.getElementById('timeline-status-badge').textContent = "狀態：已成功倒回 Checkpoint 1 (健康安全)";
+      document.getElementById('timeline-status-badge').className = "px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold";
+
+      document.getElementById('code-broken').textContent = "// 該錯誤版本已從歷史中移除，檔案已恢復為原本的健康狀態！";
+      document.getElementById('code-broken').className = "w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-500 overflow-auto leading-relaxed";
+      document.getElementById('diff-status-label').textContent = "已復原";
+
+      document.getElementById('narration-icon').textContent = "🎉";
+      document.getElementById('narration-stage').textContent = "倒帶成功：完好如初";
+      document.getElementById('narration-text').textContent = "一秒倒回！檔案內容自動恢復，連對話上下文都回滾到下指令之前的狀態。學生從此不再害怕 AI 改爛代碼！";
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Advanced Features (規劃模式與權限防火牆) 動態互動教學指南 | 09-advanced-features</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          },
+          colors: {
+            adv: {
+              accent: '#8b5cf6',
+              plan: '#38bdf8',
+              firewall: '#f43f5e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #1c162e 0%, #0c0a14 100%);
+      color: #e2e8f0;
+    }
+    .glass-panel {
+      background: rgba(26, 20, 42, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased selection:bg-purple-500/30 selection:text-purple-300">
+
+  <!-- 頂部導航 -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-400 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-purple-500/20">
+          🧠
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">Chapter 09</span>
+            <h1 class="text-xl font-bold tracking-tight text-white">規劃模式 (Planning Mode) 與權限防火牆教學台</h1>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">先思考再動手 ‧ 嚴謹架構推演 ‧ 企業級 Permission 權限矩陣</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 text-xs">
+        <button onclick="switchMode('plan')" id="btn-plan-mode" class="px-3.5 py-1.5 rounded-lg font-bold transition-all bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20">
+          📐 規劃模式 (Planning Mode)
+        </button>
+        <button onclick="switchMode('firewall')" id="btn-firewall-mode" class="px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300">
+          🛡️ 權限規則矩陣 (Permission Rules)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 教學心法：軍師沙盤推演比喻 -->
+    <div class="glass-panel rounded-2xl p-5 relative border-l-4 border-l-sky-500">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-sky-400 font-bold text-sm">💡 教學心法：軍師的「沙盤推演 (Plan)」與部隊作戰指令</span>
+            <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">軟體架構思維建立</span>
+          </div>
+          <p class="text-sm text-slate-300 leading-relaxed">
+            初學者最大的壞習慣是<strong>「一上來就叫 AI 寫代碼」</strong>，通常改了左邊壞了右邊。
+            <strong>規劃模式 (Planning Mode) 強迫 AI 先當軍師</strong>：先閱讀架構、調查相依性、撰寫詳細計畫書，<strong>經由人類審查核准後，才切換到執行模式動手</strong>！這就是資深工程師的專業工作流！
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上半部：Planning Mode 兩階段分水嶺動態展示 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="plan-section">
+      
+      <!-- 階段 1: 純思考與調查 (Read-Only) -->
+      <div class="glass-panel rounded-2xl p-5 border-t-2 border-t-sky-400 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🔍</span>
+              <h3 class="text-base font-bold text-white">階段一：研究與計畫 (PLANNING)</h3>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-sky-500/20 text-sky-300 font-bold">唯讀探索</span>
+          </div>
+          <div class="mt-4 space-y-2 text-xs text-slate-300 leading-relaxed">
+            <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-2">
+              <span class="text-emerald-400 font-bold">✓ 允許工具：</span>
+              <code class="font-mono text-sky-300">Read, Grep, Glob, WebSearch</code>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-2">
+              <span class="text-rose-400 font-bold">🚫 嚴禁動作：</span>
+              <span class="text-slate-400">禁止寫入任何檔案 (No Edit/Write/Bash modifying)</span>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-2">
+              <span class="text-amber-400 font-bold">📄 核心產出：</span>
+              <code class="font-mono text-amber-300">implementation_plan.md</code>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 p-3 rounded-xl bg-sky-950/30 border border-sky-500/20 text-xs text-sky-300">
+          💡 學生收穫：在動手前先看清楚全域改動，徹底消除重構風險！
+        </div>
+      </div>
+
+      <!-- 階段 2: 人類批准後執行 (EXECUTION) -->
+      <div class="glass-panel rounded-2xl p-5 border-t-2 border-t-emerald-400 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">⚡</span>
+              <h3 class="text-base font-bold text-white">階段二：精準執行 (EXECUTION)</h3>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 font-bold">解鎖寫入權限</span>
+          </div>
+          <div class="mt-4 space-y-2 text-xs text-slate-300 leading-relaxed">
+            <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-2">
+              <span class="text-emerald-400 font-bold">👑 人類把關：</span>
+              <span class="text-emerald-300 font-bold">必須獲得使用者明確審查核准！</span>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-2">
+              <span class="text-sky-400 font-bold">🛠️ 執行工具：</span>
+              <code class="font-mono text-emerald-300">Edit, Write, Bash (依序改動)</code>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-2">
+              <span class="text-purple-400 font-bold">🎯 驗證驗收：</span>
+              <code class="font-mono text-purple-300">walkthrough.md (總結成果)</code>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-xs text-emerald-300">
+          🚀 專業標誌：有條不紊地按部就班修改，絕不盲目亂動程式碼。
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 權限規則區 (切換時顯示) -->
+    <div class="glass-panel rounded-2xl p-6 hidden" id="firewall-section">
+      <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">企業三級權限矩陣 (Allow / Ask / Deny)</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
+          <div class="text-emerald-400 font-bold font-mono text-sm">🟢 Allow (自動放行)</div>
+          <p class="text-xs text-slate-300 mt-2">唯讀操作與安全查詢，無需人工反覆確認。</p>
+          <div class="mt-3 text-[11px] font-mono text-emerald-300 bg-slate-950 p-2 rounded">Read(*), Grep(*), Glob(*)</div>
+        </div>
+        <div class="p-4 rounded-xl bg-amber-950/30 border border-amber-500/30">
+          <div class="text-amber-400 font-bold font-mono text-sm">🟡 Ask (每次詢問確認)</div>
+          <p class="text-xs text-slate-300 mt-2">涉及檔案修改或相依套件安裝，彈出確認提示。</p>
+          <div class="mt-3 text-[11px] font-mono text-amber-300 bg-slate-950 p-2 rounded">Edit(src/**), Bash(npm install)</div>
+        </div>
+        <div class="p-4 rounded-xl bg-rose-950/30 border border-rose-500/30">
+          <div class="text-rose-400 font-bold font-mono text-sm">🔴 Deny (絕對禁止)</div>
+          <p class="text-xs text-slate-300 mt-2">破壞性指令與機密檔案，AI 永不被授權。</p>
+          <div class="mt-3 text-[11px] font-mono text-rose-300 bg-slate-950 p-2 rounded">Bash(rm -rf *), Read(.env)</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    function switchMode(mode) {
+      const planBtn = document.getElementById('btn-plan-mode');
+      const fireBtn = document.getElementById('btn-firewall-mode');
+      const planSec = document.getElementById('plan-section');
+      const fireSec = document.getElementById('firewall-section');
+
+      if (mode === 'plan') {
+        planBtn.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20";
+        fireBtn.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        planSec.classList.remove('hidden');
+        fireSec.classList.add('hidden');
+      } else {
+        fireBtn.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-rose-500 text-white shadow-md shadow-rose-500/20";
+        planBtn.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        planSec.classList.add('hidden');
+        fireSec.classList.remove('hidden');
+      }
+    }
+  </script>
+</body>
+</html>

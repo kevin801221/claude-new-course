@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Plugins (外掛生態與模組打包) 動態互動教學指南 | 07-plugins</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          },
+          colors: {
+            plug: {
+              accent: '#3b82f6',
+              cyan: '#06b6d4',
+              violet: '#8b5cf6',
+              emerald: '#10b981'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #172033 0%, #0a0e17 100%);
+      color: #e2e8f0;
+    }
+    .glass-panel {
+      background: rgba(19, 27, 44, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-plug {
+      box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+    }
+    .cartridge-slot {
+      border: 2px dashed rgba(59, 130, 246, 0.4);
+      transition: all 0.4s ease;
+    }
+    .cartridge-inserted {
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased selection:bg-blue-500/30 selection:text-blue-300">
+
+  <!-- 頂部導航 -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-500/25">
+          🧩
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">Chapter 07</span>
+            <h1 class="text-xl font-bold tracking-tight text-white">Plugins (外掛系統與模組打包) 動態教學台</h1>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">多合一卡帶熱插拔 ‧ Skills + Agents + Hooks + MCP 整包發布 ‧ 跨團隊共享</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 text-xs">
+        <span class="text-slate-400 mr-2 hidden sm:inline">外掛展示卡帶：</span>
+        <button onclick="setPlugin('pr-review')" id="btn-pl-pr" class="px-3.5 py-1.5 rounded-lg font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-500/20">
+          📦 PR 審查全能套件 (pr-review)
+        </button>
+        <button onclick="setPlugin('devops')" id="btn-pl-devops" class="px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300">
+          🚀 DevOps 自動化套件
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 教學心法：遊戲機卡帶模型 -->
+    <div class="glass-panel rounded-2xl p-5 relative border-l-4 border-l-blue-500">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-blue-400 font-bold text-sm">💡 教學心法：遊戲機「多合一遊戲卡帶 (Game Cartridge)」模型</span>
+            <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">學生一聽就懂的比喻</span>
+          </div>
+          <p class="text-sm text-slate-300 leading-relaxed">
+            告訴學生：我們前幾章學的 <strong>Skills (技能)、Subagents (子代理)、Hooks (安檢門)、MCP (資料庫連線)</strong>，如果每到一個新專案都要手動設定一次，會非常繁瑣。
+            <strong>Plugin 就是「卡帶」</strong>！把這四種能力打包進一個資料夾與 <code class="text-blue-300 font-mono">plugin.json</code>，只要<strong>一鍵插上 (Install Plugin)</strong>，整套企業級工作流立刻原地解鎖！
+          </p>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button id="btn-insert" onclick="toggleCartridge()" class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-slate-950 shadow-lg shadow-blue-500/20 transition-all active:scale-95">
+            <span id="insert-icon">🔌</span> <span id="insert-text">插上卡帶 (熱插拔)</span>
+          </button>
+          <button onclick="resetPlugin()" class="px-3.5 py-2.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-all">
+            🔄 重置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上半部：卡帶熱插拔與 4 大能力同步解鎖動態視覺 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- 左側：外掛目錄結構與 manifest (plugin.json) -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>📁 外掛標準目錄結構 (Package)</span>
+            </h3>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">
+              Standard
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 my-2">一個合法的外掛只需具備標準子資料夾：</p>
+          <pre class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-cyan-300 overflow-auto leading-relaxed">pr-review/
+├── .claude-plugin/
+│   └── plugin.json       # 外掛元資料身分證
+├── agents/               # 專用子代理 (Subagents)
+├── commands/             # 快捷指令 (Slash Commands)
+├── hooks/                # 專用生命週期攔截器 (Hooks)
+└── mcp/                  # 內嵌 MCP 伺服器設定</pre>
+        </div>
+        <div class="mt-3 text-[11px] text-slate-500">
+          ✨ 結構完全模組化，發布到 npm 或 GitHub 就能分享給全世界工程師！
+        </div>
+      </div>
+
+      <!-- 右側 (佔 2 欄)：卡帶插入插槽，4 大模組同時點亮動態 -->
+      <div class="glass-panel rounded-2xl p-5 lg:col-span-2 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🎮 卡槽主機狀態 (Plugin Host Slot)</span>
+            </h3>
+            <span id="slot-status" class="text-xs font-mono text-slate-400">
+              狀態：卡帶已拔出 (未載入)
+            </span>
+          </div>
+
+          <!-- 插槽與 4 大連動元件 -->
+          <div id="cartridge-box" class="my-4 p-5 rounded-2xl cartridge-slot transition-all duration-500 flex flex-col items-center justify-center text-center">
+            <div id="cartridge-avatar" class="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-3xl mb-3 transition-all duration-500">
+              📦
+            </div>
+            <h4 id="cartridge-title" class="text-base font-bold text-slate-300">pr-review 外掛卡帶 (等待插入)</h4>
+            <p id="cartridge-desc" class="text-xs text-slate-500 mt-1 max-w-md">
+              點擊右上角「插上卡帶 (熱插拔)」，看外掛如何瞬間將四大核心能力注入 Claude Code！
+            </p>
+          </div>
+
+          <!-- 四大能力點亮卡片 -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div id="light-agent" class="p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-center transition-all duration-300 opacity-40">
+              <div class="text-lg mb-1">🤖</div>
+              <div class="text-xs font-bold text-white">Subagents</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">code-reviewer</div>
+            </div>
+            <div id="light-command" class="p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-center transition-all duration-300 opacity-40">
+              <div class="text-lg mb-1">⚡</div>
+              <div class="text-xs font-bold text-white">Commands</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">/review-pr</div>
+            </div>
+            <div id="light-hook" class="p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-center transition-all duration-300 opacity-40">
+              <div class="text-lg mb-1">🛡️</div>
+              <div class="text-xs font-bold text-white">Hooks</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">pre-commit-check</div>
+            </div>
+            <div id="light-mcp" class="p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-center transition-all duration-300 opacity-40">
+              <div class="text-lg mb-1">🔌</div>
+              <div class="text-xs font-bold text-white">MCP Server</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">github-mcp</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 講稿橫幅 -->
+        <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-start gap-3 mt-4">
+          <div class="text-2xl mt-0.5" id="narration-icon">🧩</div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold font-mono text-blue-400 uppercase" id="narration-stage">外掛架構解說</span>
+              <span class="text-xs text-slate-500">[All-In-One Solution]</span>
+            </div>
+            <p class="text-sm text-slate-200" id="narration-text">
+              Plugin 是 Claude Code 最強大的分發機制。它不是單一功能的腳本，而是一整個解決方案的封裝！
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 下半部：即時三欄代碼對照 (plugin.json | 註冊 hooks/hooks.json | 終端機啟用指令) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- 欄位 1: plugin.json -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span>
+            <h3 class="text-sm font-bold text-white">1. 身分清單 (plugin.json)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">.claude-plugin/</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">定義外掛名稱、版本與授權協議：</p>
+        <div class="relative flex-1">
+          <pre id="code-plugin-json" class="w-full h-56 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-blue-300 overflow-auto leading-relaxed">{
+  "name": "pr-review",
+  "version": "1.0.0",
+  "description": "完整的 PR 審查工作流程，涵蓋安全性、測試與文件",
+  "author": { "name": "Anthropic" },
+  "license": "MIT"
+}</pre>
+        </div>
+      </div>
+
+      <!-- 欄位 2: 隨外掛附帶的 hooks.json -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+            <h3 class="text-sm font-bold text-white">2. 自動掛載 Hooks (hooks.json)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">hooks/</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">安裝外掛時，這些安檢門會自動生效：</p>
+        <div class="relative flex-1">
+          <pre id="code-plugin-hooks" class="w-full h-56 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-cyan-300 overflow-auto leading-relaxed">{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "./hooks/security-check.sh" }]
+      }
+    ]
+  }
+}</pre>
+        </div>
+      </div>
+
+      <!-- 欄位 3: 終端機安裝與分享指令 -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <h3 class="text-sm font-bold text-white">3. 一鍵安裝指令 (Install CLI)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">Terminal</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">學生或團隊成員只需一行指令：</p>
+        <div class="relative flex-1">
+          <pre id="code-install-cli" class="w-full h-56 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-auto leading-relaxed"># 本機專案安裝
+claude plugin add ./plugins/pr-review
+
+# 從 GitHub 遠端倉庫一鍵安裝
+claude plugin add github.com/anthropic/claude-plugins/pr-review
+
+# 驗證已載入的外掛
+claude plugin list</pre>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    let isInserted = false;
+
+    function toggleCartridge() {
+      if (isInserted) {
+        removeCartridge();
+      } else {
+        insertCartridge();
+      }
+    }
+
+    function insertCartridge() {
+      isInserted = true;
+      document.getElementById('insert-icon').textContent = "⏏️";
+      document.getElementById('insert-text').textContent = "退出卡帶";
+
+      const box = document.getElementById('cartridge-box');
+      box.className = "my-4 p-5 rounded-2xl cartridge-slot cartridge-inserted glow-plug transition-all duration-500 flex flex-col items-center justify-center text-center";
+
+      document.getElementById('cartridge-avatar').className = "w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-400 text-3xl mb-3 shadow-lg scale-110 transition-all duration-500";
+      document.getElementById('cartridge-title').textContent = "✨ pr-review 卡帶已成功安裝！";
+      document.getElementById('cartridge-title').className = "text-base font-bold text-blue-300";
+      document.getElementById('cartridge-desc').textContent = "四大模組已同時啟動！Claude Code 現在同時具備專屬 Reviewer 子代理、/review-pr 指令與安全安檢門。";
+      document.getElementById('slot-status').textContent = "狀態：卡帶運作中 (Active)";
+      document.getElementById('slot-status').className = "text-xs font-mono text-emerald-400 font-bold";
+
+      ['light-agent', 'light-command', 'light-hook', 'light-mcp'].forEach(id => {
+        const el = document.getElementById(id);
+        el.className = "p-3 rounded-xl border border-blue-500/60 bg-blue-950/40 text-center transition-all duration-300 opacity-100 shadow-md";
+      });
+
+      document.getElementById('narration-icon').textContent = "🎉";
+      document.getElementById('narration-stage').textContent = "外掛熱插拔成功";
+      document.getElementById('narration-text').textContent = "卡帶成功插入！專案瞬間獲得完整的 PR 審查工作流程，團隊成員完全不用重複繁雜的手動設定！";
+    }
+
+    function removeCartridge() {
+      isInserted = false;
+      document.getElementById('insert-icon').textContent = "🔌";
+      document.getElementById('insert-text').textContent = "插上卡帶 (熱插拔)";
+
+      const box = document.getElementById('cartridge-box');
+      box.className = "my-4 p-5 rounded-2xl cartridge-slot transition-all duration-500 flex flex-col items-center justify-center text-center";
+
+      document.getElementById('cartridge-avatar').className = "w-16 h-16 rounded-2xl bg-slate-800 text-3xl mb-3 transition-all duration-500";
+      document.getElementById('cartridge-title').textContent = "pr-review 外掛卡帶 (等待插入)";
+      document.getElementById('cartridge-title').className = "text-base font-bold text-slate-300";
+      document.getElementById('cartridge-desc').textContent = "點擊右上角「插上卡帶 (熱插拔)」，看外掛如何瞬間將四大核心能力注入 Claude Code！";
+      document.getElementById('slot-status').textContent = "狀態：卡帶已拔出 (未載入)";
+      document.getElementById('slot-status').className = "text-xs font-mono text-slate-400";
+
+      ['light-agent', 'light-command', 'light-hook', 'light-mcp'].forEach(id => {
+        const el = document.getElementById(id);
+        el.className = "p-3 rounded-xl border border-slate-800 bg-slate-950/60 text-center transition-all duration-300 opacity-40";
+      });
+
+      document.getElementById('narration-icon').textContent = "🧩";
+      document.getElementById('narration-stage').textContent = "卡帶已退出";
+      document.getElementById('narration-text').textContent = "外掛已拔出，系統恢復初始狀態。";
+    }
+
+    function resetPlugin() {
+      removeCartridge();
+    }
+
+    function setPlugin(type) {
+      if (type === 'devops') {
+        document.getElementById('btn-pl-devops').className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-500/20";
+        document.getElementById('btn-pl-pr').className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        document.getElementById('code-plugin-json').textContent = JSON.stringify({
+          name: "devops-automation",
+          version: "1.0.0",
+          description: "CI/CD 流水線與 Docker 容器編排自動化套件",
+          author: { name: "DevOps Team" }
+        }, null, 2);
+      } else {
+        document.getElementById('btn-pl-pr').className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-blue-600 text-white shadow-md shadow-blue-500/20";
+        document.getElementById('btn-pl-devops').className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        document.getElementById('code-plugin-json').textContent = JSON.stringify({
+          name: "pr-review",
+          version: "1.0.0",
+          description: "完整的 PR 審查工作流程，涵蓋安全性、測試與文件",
+          author: { name: "Anthropic" },
+          license: "MIT"
+        }, null, 2);
+      }
+      insertCartridge();
+    }
+  </script>
+</body>
+</html>
