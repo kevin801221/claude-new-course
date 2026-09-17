@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP (Model Context Protocol) 動態互動教學指南 | 05-mcp</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          },
+          colors: {
+            mcp: {
+              host: '#38bdf8',
+              pipe: '#a855f7',
+              server: '#10b981',
+              json: '#f59e0b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #151d2a 0%, #0a0f16 100%);
+      color: #e2e8f0;
+    }
+    .glass-panel {
+      background: rgba(18, 26, 38, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .flow-packet {
+      transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .pipe-glow {
+      stroke-dasharray: 6;
+      animation: packetFlow 1s linear infinite;
+    }
+    @keyframes packetFlow {
+      to {
+        stroke-dashoffset: -12;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-300">
+
+  <!-- 頂部導航 -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-300 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-cyan-500/20">
+          🔌
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Chapter 05</span>
+            <h1 class="text-xl font-bold tracking-tight text-white">MCP (Model Context Protocol) 握手與通訊教學台</h1>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">AI 的 USB-C 協定 ‧ JSON-RPC 2.0 封包往返 ‧ STDIO 通道動態視覺化</p>
+        </div>
+      </div>
+
+      <!-- 伺服器切換 -->
+      <div class="flex items-center space-x-2 text-xs">
+        <span class="text-slate-400 mr-2 hidden sm:inline">示範伺服器：</span>
+        <button onclick="setServer('database')" id="btn-srv-database" class="px-3.5 py-1.5 rounded-lg font-bold transition-all bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20">
+          🗄️ PostgreSQL 資料庫
+        </button>
+        <button onclick="setServer('github')" id="btn-srv-github" class="px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300">
+          🐙 GitHub 倉庫操作
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 教學心法：USB-C 萬用轉接頭比喻 -->
+    <div class="glass-panel rounded-2xl p-5 relative border-l-4 border-l-cyan-500">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-cyan-400 font-bold text-sm">💡 教學心法：AI 界的「USB-C 統一轉接頭」模型</span>
+            <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">學生一聽就懂的比喻</span>
+          </div>
+          <p class="text-sm text-slate-300 leading-relaxed">
+            以前 AI 要連資料庫、連 GitHub、連 Slack，每家都要寫一套特規 API 程式碼。而 <strong>MCP (Model Context Protocol)</strong> 就是 Anthropic 提出的<strong>「AI 界 USB-C 標準」</strong>！
+            只要外部服務提供一個 MCP Server，Claude 透過標準的 <strong class="text-cyan-300 font-mono">JSON-RPC 2.0</strong> 協定插上去，就能<strong>秒懂對方有哪些工具，並直接安全調用</strong>！
+          </p>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button id="btn-play" onclick="togglePlay()" class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 shadow-lg shadow-cyan-500/20 transition-all active:scale-95">
+            <span id="play-icon">▶</span> <span id="play-text">播放握手流程</span>
+          </button>
+          <button onclick="stepForward()" class="px-3.5 py-2.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all active:scale-95" title="單步解說">
+            ⏭ 單步解說
+          </button>
+          <button onclick="resetSimulation()" class="px-3.5 py-2.5 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-all" title="重置">
+            🔄 重置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 視覺核心：三方架構與動態封包傳輸管線 -->
+    <div class="glass-panel rounded-2xl p-6 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold tracking-wider uppercase text-slate-400 flex items-center gap-2">
+          <span>MCP 三層架構與即時封包管線 (Client - Transport - Server)</span>
+        </h2>
+        <span id="pipe-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+          階段 1：協定握手 (initialize)
+        </span>
+      </div>
+
+      <!-- 架構管線圖 -->
+      <div class="relative py-6 my-2">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+          
+          <!-- 左：Claude Code (Host / Client) -->
+          <div id="box-client" class="p-5 rounded-2xl bg-slate-900/90 border-2 border-cyan-500/60 shadow-lg shadow-cyan-500/10 text-center transition-all duration-300">
+            <div class="w-12 h-12 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl mb-2">
+              🧠
+            </div>
+            <div class="text-xs font-mono text-cyan-400 font-bold uppercase">MCP Host / Client</div>
+            <h3 class="text-base font-bold text-white mt-0.5">Claude Code 核心</h3>
+            <p class="text-xs text-slate-400 mt-1">發起 JSON-RPC 請求、接收工具清單並推理調用</p>
+            <div class="mt-3 py-1 px-2.5 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono text-cyan-300" id="client-state">
+              發出 initialize 請求...
+            </div>
+          </div>
+
+          <!-- 中：傳輸通道 (STDIO / SSE 輸送帶) -->
+          <div class="p-5 rounded-2xl bg-slate-950/80 border border-purple-500/30 flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div class="text-xs font-mono text-purple-400 font-bold uppercase mb-1">Transport Layer</div>
+            <div class="text-sm font-bold text-white flex items-center gap-2">
+              <span>雙向 STDIO 管道</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">標準輸入輸出 stdin / stdout</p>
+
+            <!-- 動態流動封包指示器 -->
+            <div class="w-full my-4 py-2 px-3 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-xs font-mono text-amber-400">
+              <span id="packet-direction">Client ➔ Server</span>
+              <span id="packet-method" class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
+                initialize
+              </span>
+            </div>
+            <div class="text-[10px] text-slate-500 font-mono">JSON-RPC 2.0 (UTF-8 Plaintext)</div>
+          </div>
+
+          <!-- 右：外部 MCP Server -->
+          <div id="box-server" class="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 text-center transition-all duration-300">
+            <div class="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-2xl mb-2" id="server-icon">
+              🗄️
+            </div>
+            <div class="text-xs font-mono text-emerald-400 font-bold uppercase" id="server-tag">MCP Server</div>
+            <h3 class="text-base font-bold text-white mt-0.5" id="server-title">PostgreSQL Server</h3>
+            <p class="text-xs text-slate-400 mt-1" id="server-desc">向資料庫查詢 Schema 與執行安全唯讀 SQL</p>
+            <div class="mt-3 py-1 px-2.5 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono text-emerald-300" id="server-state">
+              等待協商連線...
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 口述講解橫幅 (講師照唸) -->
+      <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-start gap-3 mt-4">
+        <div class="text-2xl mt-0.5" id="narration-icon">🤝</div>
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold font-mono text-cyan-400 uppercase" id="narration-stage">握手第 1 步：協商初始化</span>
+            <span class="text-xs text-slate-500" id="narration-role">[Protocol Handshake]</span>
+          </div>
+          <p class="text-sm text-slate-200" id="narration-text">
+            Claude Code 啟動時，會根據設定檔自動啟動 MCP Server 行程，並透過 STDIO 發送第一包 <code class="text-cyan-300 font-mono">initialize</code> 封包，確認雙方的協定版本與能力！
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下半部：即時 JSON-RPC 封包對照台 (3 欄) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- 欄位 1: 設定檔 (.claude/settings.json 中的 mcpServers) -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+            <h3 class="text-sm font-bold text-white">1. MCP 設定檔 (settings.json)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">專案設定</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">告訴 Claude Code 去哪裡啟動對應的伺服器：</p>
+        <div class="relative flex-1">
+          <pre id="code-config" class="w-full h-64 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-cyan-300 overflow-auto leading-relaxed">{
+  "mcpServers": {
+    "database": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-postgres"],
+      "env": {
+        "DATABASE_URL": "postgresql://user:***@localhost:5432/app"
+      }
+    }
+  }
+}</pre>
+        </div>
+        <div class="mt-3 text-[11px] text-slate-500">
+          🔑 只要在 JSON 設定好指令，Claude Code 就會以子行程自動拉起！
+        </div>
+      </div>
+
+      <!-- 欄位 2: 實際發送的 JSON-RPC Request -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <h3 class="text-sm font-bold text-white">2. 請求封包 (Request)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-amber-400" id="req-method-label">initialize</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">Claude 發送到 stdin 的標準 JSON-RPC 2.0 格式：</p>
+        <div class="relative flex-1">
+          <pre id="code-request" class="w-full h-64 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 overflow-auto leading-relaxed">{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "roots": { "listChanged": true },
+      "sampling": {}
+    },
+    "clientInfo": {
+      "name": "claude-code",
+      "version": "1.0.0"
+    }
+  }
+}</pre>
+        </div>
+        <div class="mt-3 text-[11px] text-slate-500">
+          📡 嚴格遵循標準協定，任何語言寫的 Server 都能無縫解析！
+        </div>
+      </div>
+
+      <!-- 欄位 3: 伺服器回傳的 JSON-RPC Response -->
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <h3 class="text-sm font-bold text-white">3. 回應封包 (Response)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-emerald-400">Server 回傳</span>
+        </div>
+        <p class="text-xs text-slate-400 my-2">MCP Server 在 stdout 回傳的工具定義或查詢結果：</p>
+        <div class="relative flex-1">
+          <pre id="code-response" class="w-full h-64 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-auto leading-relaxed">{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "tools": { "listChanged": false },
+      "resources": {}
+    },
+    "serverInfo": {
+      "name": "postgresql-mcp-server",
+      "version": "0.1.0"
+    }
+  }
+}</pre>
+        </div>
+        <div class="mt-3 text-[11px] text-slate-500">
+          🎉 握手成功後，Claude 就正式解鎖了全新的外部超能力！
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 知識點卡片：MCP 的三大核心元素 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="glass-panel p-5 rounded-xl space-y-2 border-t-2 border-t-cyan-500">
+        <h4 class="font-bold text-sm text-white flex items-center gap-2">
+          <span>🛠️ 1. Tools (動態可調用工具)</span>
+        </h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          AI 可以主動執行的函式，例如 <code class="text-cyan-300 font-mono">query_database</code> 或 <code class="text-cyan-300 font-mono">create_github_issue</code>，具備清楚的 JSON Schema 參數規範。
+        </p>
+      </div>
+
+      <div class="glass-panel p-5 rounded-xl space-y-2 border-t-2 border-t-purple-500">
+        <h4 class="font-bold text-sm text-white flex items-center gap-2">
+          <span>📄 2. Resources (唯讀數據資源)</span>
+        </h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          類似檔案系統或資料庫表格的直接快照，透過 URI 存取（例如 <code class="text-purple-300 font-mono">postgres://users/schema</code>），供 AI 隨時查閱背景知識。
+        </p>
+      </div>
+
+      <div class="glass-panel p-5 rounded-xl space-y-2 border-t-2 border-t-emerald-500">
+        <h4 class="font-bold text-sm text-white flex items-center gap-2">
+          <span>💬 3. Prompts (預設提示範本)</span>
+        </h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          伺服器自帶的結構化工作流程提示詞（Slash Commands），讓使用者能一鍵執行該伺服器的專屬最佳實踐。
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const MCP_STEPS = [
+      {
+        stage: "握手第 1 步：協商初始化 (initialize)",
+        role: "Protocol Handshake",
+        icon: "🤝",
+        text: "Claude Code 剛連上 MCP Server 時，雙方必須先確認彼此的協定版本與支援能力（Capabilities）。",
+        direction: "Client ➔ Server",
+        method: "initialize",
+        clientState: "發出 initialize 請求...",
+        serverState: "回應協定版本與 serverInfo",
+        request: {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            clientInfo: { name: "claude-code", version: "1.0.0" }
+          }
+        },
+        response: {
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            protocolVersion: "2024-11-05",
+            serverInfo: { name: "postgresql-mcp-server", version: "0.1.0" },
+            capabilities: { tools: {}, resources: {} }
+          }
+        }
+      },
+      {
+        stage: "握手第 2 步：工具盤點 (tools/list)",
+        role: "Tool Discovery",
+        icon: "🔍",
+        text: "握手成功後，Claude 詢問：『你有哪些工具可以用？』Server 回傳工具清單與參數規範（JSON Schema）。Claude 瞬間具備查 DB 的能力！",
+        direction: "Client ➔ Server",
+        method: "tools/list",
+        clientState: "詢問可用工具清單...",
+        serverState: "回傳 read_query 與 list_tables 工具",
+        request: {
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/list",
+          params: {}
+        },
+        response: {
+          jsonrpc: "2.0",
+          id: 2,
+          result: {
+            tools: [
+              {
+                name: "read_query",
+                description: "在資料庫執行唯讀 SELECT 查詢",
+                inputSchema: {
+                  type: "object",
+                  properties: { sql: { type: "string" } },
+                  required: ["sql"]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        stage: "握手第 3 步：工具呼叫 (tools/call)",
+        role: "Tool Execution",
+        icon: "⚡",
+        text: "當使用者問：『統計會員人數』，Claude 自動生成 SQL 語法，透過 tools/call 傳送給 Server。Server 執行後將真實結果送回！",
+        direction: "Client ➔ Server",
+        method: "tools/call",
+        clientState: "呼叫 read_query(SELECT count(*)...)",
+        serverState: "執行 SQL 查詢並回傳 1,420 筆",
+        request: {
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "read_query",
+            arguments: {
+              sql: "SELECT count(*) as total_users FROM users WHERE is_active = true;"
+            }
+          }
+        },
+        response: {
+          jsonrpc: "2.0",
+          id: 3,
+          result: {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify([{ total_users: 1420 }])
+              }
+            ],
+            isError: false
+          }
+        }
+      }
+    ];
+
+    let currentStep = 0;
+    let isPlaying = false;
+    let playTimer = null;
+
+    function renderStep() {
+      const s = MCP_STEPS[currentStep];
+
+      document.getElementById('narration-stage').textContent = s.stage;
+      document.getElementById('narration-role').textContent = `[${s.role}]`;
+      document.getElementById('narration-icon').textContent = s.icon;
+      document.getElementById('narration-text').textContent = s.text;
+      document.getElementById('pipe-status-badge').textContent = s.stage;
+
+      document.getElementById('packet-direction').textContent = s.direction;
+      document.getElementById('packet-method').textContent = s.method;
+      document.getElementById('req-method-label').textContent = s.method;
+
+      document.getElementById('client-state').textContent = s.clientState;
+      document.getElementById('server-state').textContent = s.serverState;
+
+      document.getElementById('code-request').textContent = JSON.stringify(s.request, null, 2);
+      document.getElementById('code-response').textContent = JSON.stringify(s.response, null, 2);
+    }
+
+    function stepForward() {
+      if (currentStep < MCP_STEPS.length - 1) {
+        currentStep++;
+      } else {
+        currentStep = 0;
+      }
+      renderStep();
+    }
+
+    function resetSimulation() {
+      stopPlay();
+      currentStep = 0;
+      renderStep();
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        stopPlay();
+      } else {
+        startPlay();
+      }
+    }
+
+    function startPlay() {
+      isPlaying = true;
+      document.getElementById('play-icon').textContent = "⏸";
+      document.getElementById('play-text').textContent = "暫停播放";
+      playTimer = setInterval(() => {
+        if (currentStep < MCP_STEPS.length - 1) {
+          currentStep++;
+          renderStep();
+        } else {
+          stopPlay();
+        }
+      }, 3000);
+    }
+
+    function stopPlay() {
+      isPlaying = false;
+      clearInterval(playTimer);
+      document.getElementById('play-icon').textContent = "▶";
+      document.getElementById('play-text').textContent = "播放握手流程";
+    }
+
+    function setServer(type) {
+      const btnDb = document.getElementById('btn-srv-database');
+      const btnGh = document.getElementById('btn-srv-github');
+      const sTitle = document.getElementById('server-title');
+      const sDesc = document.getElementById('server-desc');
+      const sIcon = document.getElementById('server-icon');
+      const config = document.getElementById('code-config');
+
+      if (type === 'database') {
+        btnDb.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20";
+        btnGh.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        sTitle.textContent = "PostgreSQL Server";
+        sDesc.textContent = "向資料庫查詢 Schema 與執行安全唯讀 SQL";
+        sIcon.textContent = "🗄️";
+        config.textContent = JSON.stringify({
+          mcpServers: {
+            database: {
+              type: "stdio",
+              command: "npx",
+              args: ["@modelcontextprotocol/server-postgres"],
+              env: { DATABASE_URL: "postgresql://user:***@localhost:5432/app" }
+            }
+          }
+        }, null, 2);
+      } else {
+        btnGh.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20";
+        btnDb.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        sTitle.textContent = "GitHub MCP Server";
+        sDesc.textContent = "操作 Pull Request、建立 Issue 與查看 Commit";
+        sIcon.textContent = "🐙";
+        config.textContent = JSON.stringify({
+          mcpServers: {
+            github: {
+              type: "stdio",
+              command: "npx",
+              args: ["@modelcontextprotocol/server-github"],
+              env: { GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_***" }
+            }
+          }
+        }, null, 2);
+      }
+      resetSimulation();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderStep();
+    });
+  </script>
+</body>
+</html>

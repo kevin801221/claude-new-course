@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Hooks 生命週期可展開時間軸 (Lifecycle Timeline)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '"Noto Sans TC"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            slate: {
+              950: '#070a11',
+              900: '#0b111e',
+              850: '#101828',
+              800: '#162238',
+              750: '#1d2c48',
+              700: '#253759',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #070a11;
+      color: #cbd5e1;
+    }
+    .timeline-spine::before {
+      content: '';
+      position: absolute;
+      top: 28px;
+      bottom: 28px;
+      left: 27px;
+      width: 2px;
+      background: #1e293b;
+      z-index: 0;
+    }
+    .node-collapsed .node-body {
+      display: none;
+    }
+    .node-expanded .node-body {
+      display: block;
+    }
+    .node-expanded .chevron-icon {
+      transform: rotate(180deg);
+    }
+    /* 簡約微動態 */
+    .btn-action {
+      transition: all 0.15s ease-in-out;
+    }
+    .btn-action:active {
+      transform: scale(0.97);
+    }
+    /* 滾動條 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased text-sm">
+
+  <!-- 頂部導航列：操作按鈕區 (確保每顆按鈕都有完整反饋) -->
+  <header class="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur sticky top-0 z-50 px-4 sm:px-6 py-3">
+    <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+      
+      <!-- 標題與版本 -->
+      <div class="flex items-center space-x-3">
+        <span class="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 border border-slate-700">
+          Claude Code v2.1
+        </span>
+        <div class="h-4 w-px bg-slate-700"></div>
+        <h1 class="text-sm font-semibold text-slate-100 tracking-tight">Hooks 事件生命週期時間軸</h1>
+        <span class="text-xs text-slate-500 hidden lg:inline">/ 點擊任一節點展開規格與代碼</span>
+      </div>
+
+      <!-- 快捷操作工具按鈕群 (全部保證可點擊) -->
+      <div class="flex flex-wrap items-center gap-2 font-mono text-xs">
+        
+        <!-- 自動播放整個流程 -->
+        <button id="btn-auto-play" onclick="toggleAutoPlay()" class="btn-action flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 cursor-pointer">
+          <span id="play-icon">▶</span> <span id="play-text">自動循序播放</span>
+        </button>
+
+        <!-- 展開 / 收合全部 -->
+        <button id="btn-expand-all" onclick="toggleExpandAll()" class="btn-action px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">
+          展開全部
+        </button>
+
+        <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+
+        <!-- 情境切換：放行 vs 阻擋 -->
+        <div class="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800">
+          <button id="btn-scen-allow" onclick="setScenario('allow')" class="btn-action px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer">
+            放行情境 (Exit 0)
+          </button>
+          <button id="btn-scen-block" onclick="setScenario('block')" class="btn-action px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-slate-200 cursor-pointer">
+            阻擋情境 (Exit 2)
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </header>
+
+  <!-- 頂部規格摘要與當前狀態橫幅 -->
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 pt-5">
+    <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+        <span class="font-mono text-xs text-slate-300">
+          當前模式：<strong id="banner-scenario-text" class="text-emerald-400">正常放行 ➔ 寫檔排版 (Exit 0)</strong>
+        </span>
+      </div>
+      <div class="flex items-center gap-3 text-xs font-mono text-slate-400">
+        <span>快速鍵：<kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-[10px]">↑</kbd> <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-[10px]">↓</kbd> 切換節點</span>
+        <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-[10px]">Space</kbd> 展開/收合</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主時間軸容器 (垂直展開手風琴) -->
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+    <div class="relative timeline-spine space-y-4" id="timeline-container">
+      
+      <!-- ================================================================= -->
+      <!-- 節點 1: SessionStart -->
+      <!-- ================================================================= -->
+      <div id="node-0" class="node-item node-collapsed relative bg-slate-900 border border-slate-800 rounded-xl transition-all duration-200 overflow-hidden">
+        
+        <!-- 節點標題列 (可點擊切換展開/收合) -->
+        <div onclick="toggleNode(0)" class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-850/80 transition-colors">
+          <div class="flex items-center space-x-3.5 relative z-10">
+            <!-- 時間軸節點圖示 -->
+            <div class="w-8 h-8 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center font-mono text-xs text-slate-300 font-bold shrink-0">
+              01
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">SESSION_INIT</span>
+                <h3 class="font-mono text-sm font-bold text-slate-100">SessionStart</h3>
+                <span class="text-xs text-slate-400 hidden sm:inline">— 工作階段啟動與環境準備</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">執行 session 前置依賴檢查，只在啟動時執行一次 (once: true)</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80">
+              once: true
+            </span>
+            <svg class="chevron-icon w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 展開內容主體 (Markdown 內容 + 代碼 + 模擬測試) -->
+        <div class="node-body p-5 border-t border-slate-800/80 bg-slate-950/70 space-y-4">
+          
+          <!-- 分頁切換列 -->
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+            <div class="flex items-center space-x-1 font-mono text-xs">
+              <button onclick="switchNodeTab(0, 'md')" id="tab-0-md" class="btn-action px-3 py-1 rounded bg-slate-800 text-sky-400 font-medium border border-slate-700 cursor-pointer">
+                規格手冊 (Markdown)
+              </button>
+              <button onclick="switchNodeTab(0, 'config')" id="tab-0-config" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                settings.json 設定
+              </button>
+              <button onclick="switchNodeTab(0, 'script')" id="tab-0-script" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                dependency-check.sh 代碼
+              </button>
+              <button onclick="switchNodeTab(0, 'payload')" id="tab-0-payload" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                stdin 封包對照
+              </button>
+            </div>
+
+            <!-- 模擬觸發按鈕 -->
+            <button onclick="runNodeSimulation(0)" class="btn-action flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono cursor-pointer">
+              <span>▶</span> 模擬執行此 Hook
+            </button>
+          </div>
+
+          <!-- TAB 1: Markdown 講義內容 -->
+          <div id="content-0-md" class="space-y-3 text-xs leading-relaxed text-slate-300">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <h4 class="font-mono font-bold uppercase tracking-wider text-slate-400">觸發規格與特性</h4>
+                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong>觸發時機</strong>：使用者在終端機輸入 <code class="px-1 py-0.5 rounded bg-slate-800 text-sky-300 font-mono">claude</code> 進入對話的一瞬間觸發。</li>
+                  <li><strong>阻擋限制</strong>：此事件<strong>不支援</strong>阻擋工作階段（exit 2 僅發出警告，不中斷對話）。</li>
+                  <li><strong>逾時時間</strong>：預設為 600 秒（建議搭配輕量腳本於 2 秒內完成）。</li>
+                </ul>
+              </div>
+              <div class="space-y-2">
+                <h4 class="font-mono font-bold uppercase tracking-wider text-slate-400">實戰核心用途</h4>
+                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                  <li>檢查本地開發環境（如 Prettier、Git、Docker、Node 是否已安裝）。</li>
+                  <li>通知團隊工作階段啟動（透過 Webhook 送出訊息至 Slack/Discord）。</li>
+                  <li>初始化審計日誌目錄（<code class="px-1 py-0.5 rounded bg-slate-800 text-sky-300 font-mono">.claude/hooks/audit.log</code>）。</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: settings.json -->
+          <div id="content-0-config" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>.claude/settings.json</span>
+              <button onclick="copyToClipboard('cfg-0', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="cfg-0" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-sky-300 overflow-x-auto leading-relaxed">{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./06-hooks/dependency-check.sh",
+            "once": true,
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}</pre>
+          </div>
+
+          <!-- TAB 3: 實作腳本 -->
+          <div id="content-0-script" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>06-hooks/dependency-check.sh (chmod +x)</span>
+              <button onclick="copyToClipboard('src-0', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="src-0" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed">#!/bin/bash
+# 檢查工作環境相依性工具
+LOG_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}/.claude/hooks"
+mkdir -p "$LOG_DIR"
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session starting..." >> "$LOG_DIR/session.log"
+
+# 檢查關鍵工具
+MISSING_TOOLS=()
+for tool in prettier git node; do
+  if ! command -v "$tool" &> /dev/null; then
+    MISSING_TOOLS+=("$tool")
+  fi
+done
+
+if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
+  echo "警告：系統缺少以下推薦工具：${MISSING_TOOLS[*]}" >&2
+fi
+
+exit 0</pre>
+          </div>
+
+          <!-- TAB 4: stdin 封包 -->
+          <div id="content-0-payload" class="hidden space-y-2">
+            <span class="text-xs font-mono text-slate-400">Claude Code 傳入之標準輸入 (stdin JSON)</span>
+            <pre class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 overflow-x-auto leading-relaxed">{
+  "session_id": "ses_01J8N2X99K42...",
+  "transcript_path": "/Users/kevinluo/.claude/transcripts/ses_01J8N2X99K42.jsonl",
+  "hook_event_name": "SessionStart"
+}</pre>
+          </div>
+
+          <!-- 即時模擬終端輸出視窗 (點擊「模擬執行此 Hook」時展開) -->
+          <div id="sim-0" class="hidden p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono">
+            <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 text-slate-400">
+              <span class="text-emerald-400 font-bold">● 模擬執行輸出 (Simulation Result)</span>
+              <span class="text-[10px] text-slate-500">耗時: 28ms</span>
+            </div>
+            <div class="text-slate-300 leading-relaxed">
+              [HOOK: SessionStart] 讀取 stdin 成功。<br>
+              檢查本地相依套件：prettier [OK], git [OK], node [OK]<br>
+              工作階段日誌已寫入：.claude/hooks/session.log<br>
+              <span class="text-emerald-400 font-bold mt-1 inline-block">➔ Exit Code: 0 (放行繼續)</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- 節點 2: UserPromptSubmit -->
+      <!-- ================================================================= -->
+      <div id="node-1" class="node-item node-collapsed relative bg-slate-900 border border-slate-800 rounded-xl transition-all duration-200 overflow-hidden">
+        
+        <div onclick="toggleNode(1)" class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-850/80 transition-colors">
+          <div class="flex items-center space-x-3.5 relative z-10">
+            <div class="w-8 h-8 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center font-mono text-xs text-slate-300 font-bold shrink-0">
+              02
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">PROMPT_GATE</span>
+                <h3 class="font-mono text-sm font-bold text-slate-100">UserPromptSubmit</h3>
+                <span class="text-xs text-slate-400 hidden sm:inline">— 提問送出審核與 Context 注入</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">送交模型前攔截 Prompt、敏感詞過濾或計算提問前 Token 基準</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80">
+              timeout: 30s
+            </span>
+            <svg class="chevron-icon w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="node-body p-5 border-t border-slate-800/80 bg-slate-950/70 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+            <div class="flex items-center space-x-1 font-mono text-xs">
+              <button onclick="switchNodeTab(1, 'md')" id="tab-1-md" class="btn-action px-3 py-1 rounded bg-slate-800 text-sky-400 font-medium border border-slate-700 cursor-pointer">
+                規格手冊 (Markdown)
+              </button>
+              <button onclick="switchNodeTab(1, 'config')" id="tab-1-config" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                settings.json 設定
+              </button>
+              <button onclick="switchNodeTab(1, 'script')" id="tab-1-script" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                validate-prompt.sh 代碼
+              </button>
+              <button onclick="switchNodeTab(1, 'payload')" id="tab-1-payload" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                stdin 封包對照
+              </button>
+            </div>
+
+            <button onclick="runNodeSimulation(1)" class="btn-action flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono cursor-pointer">
+              <span>▶</span> 模擬執行此 Hook
+            </button>
+          </div>
+
+          <div id="content-1-md" class="space-y-3 text-xs leading-relaxed text-slate-300">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <h4 class="font-mono font-bold uppercase tracking-wider text-slate-400">觸發規格與特性</h4>
+                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong>觸發時機</strong>：使用者按下 Enter 送出提示詞，但在 Claude Code 送交 API 之前。</li>
+                  <li><strong>逾時預算</strong>：系統預設自動降至 <strong>30 秒</strong>，避免讓使用者枯等。</li>
+                  <li><strong>阻擋能力 (Exit 2)</strong>：支援！若回傳 <code class="px-1 py-0.5 rounded bg-slate-800 text-rose-300 font-mono">exit 2</code>，提問立即被拒絕，完全不消耗 LLM Token。</li>
+                </ul>
+              </div>
+              <div class="space-y-2">
+                <h4 class="font-mono font-bold uppercase tracking-wider text-slate-400">與 context-tracker.py 的連動</h4>
+                <p class="text-slate-300">
+                  本專案的 <code class="text-sky-300 font-mono">context-tracker.py</code> 正是在這個時間點抓取 <code class="font-mono text-amber-300">transcript_path</code>，先將目前對話歷史的 Token 估算值存入暫存檔，為後續回答後的差值計算做準備。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div id="content-1-config" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>.claude/settings.json</span>
+              <button onclick="copyToClipboard('cfg-1', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="cfg-1" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-sky-300 overflow-x-auto leading-relaxed">{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./06-hooks/validate-prompt.sh"
+          }
+        ]
+      }
+    ]
+  }
+}</pre>
+          </div>
+
+          <div id="content-1-script" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>06-hooks/validate-prompt.sh</span>
+              <button onclick="copyToClipboard('src-1', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="src-1" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed">#!/bin/bash
+# 提示詞敏感資安關鍵字過濾
+INPUT=$(cat)
+PROMPT=$(echo "$INPUT" | sed -n 's/.*"prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+# 檢查是否含有敏感外洩指令
+if [[ "$PROMPT" =~ "AWS_SECRET" || "$PROMPT" =~ "PRIVATE_KEY" ]]; then
+  echo "【資安政策攔截】提問內容涉及機密金鑰外洩，已被拒絕！" >&2
+  exit 2 # 阻擋提問
+fi
+
+exit 0</pre>
+          </div>
+
+          <div id="content-1-payload" class="hidden space-y-2">
+            <span class="text-xs font-mono text-slate-400">傳入之 stdin JSON</span>
+            <pre class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 overflow-x-auto leading-relaxed">{
+  "prompt": "請幫我重構 src/utils.ts 裡的工具函式，加上嚴格型別定義。",
+  "session_id": "ses_01J8N2X...",
+  "transcript_path": "/Users/kevinluo/.claude/transcripts/ses_01J8N2X.jsonl"
+}</pre>
+          </div>
+
+          <div id="sim-1" class="hidden p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono">
+            <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 text-slate-400">
+              <span class="text-emerald-400 font-bold">● 模擬執行輸出 (Simulation Result)</span>
+              <span class="text-[10px] text-slate-500">耗時: 14ms</span>
+            </div>
+            <div class="text-slate-300 leading-relaxed">
+              [HOOK: UserPromptSubmit] 提示詞合規性掃描完成。<br>
+              未檢測出機密外洩模式。<br>
+              <span class="text-emerald-400 font-bold mt-1 inline-block">➔ Exit Code: 0 (放行，Prompt 送交模型推理)</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- 節點 3: PreToolUse (關鍵核心節點) -->
+      <!-- ================================================================= -->
+      <div id="node-2" class="node-item node-expanded relative bg-slate-900 border-2 border-sky-500/50 rounded-xl transition-all duration-200 overflow-hidden shadow-lg shadow-sky-500/5">
+        
+        <div onclick="toggleNode(2)" class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-850/80 transition-colors">
+          <div class="flex items-center space-x-3.5 relative z-10">
+            <div id="circle-node-2" class="w-8 h-8 rounded-full border border-sky-400 bg-slate-950 flex items-center justify-center font-mono text-xs text-sky-400 font-bold shrink-0">
+              03
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span id="badge-pretool-tag" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/40">CRITICAL_GATE</span>
+                <h3 class="font-mono text-sm font-bold text-slate-100">PreToolUse</h3>
+                <span class="text-xs text-slate-400 hidden sm:inline">— 工具調用前審查（支援 Exit 2 阻擋）</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">海關安檢門：審查即將調用的 Bash 指令或修改路徑，防止毀滅性改動</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <span id="badge-pretool-status" class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
+              放行 (Exit 0)
+            </span>
+            <svg class="chevron-icon w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="node-body p-5 border-t border-slate-800/80 bg-slate-950/70 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+            <div class="flex items-center space-x-1 font-mono text-xs">
+              <button onclick="switchNodeTab(2, 'md')" id="tab-2-md" class="btn-action px-3 py-1 rounded bg-slate-800 text-sky-400 font-medium border border-slate-700 cursor-pointer">
+                規格手冊 (Markdown)
+              </button>
+              <button onclick="switchNodeTab(2, 'config')" id="tab-2-config" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                settings.json 設定
+              </button>
+              <button onclick="switchNodeTab(2, 'script')" id="tab-2-script" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                pre-tool-check.sh 代碼
+              </button>
+              <button onclick="switchNodeTab(2, 'payload')" id="tab-2-payload" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                stdin / stderr 封包
+              </button>
+            </div>
+
+            <button onclick="runNodeSimulation(2)" class="btn-action flex items-center gap-1.5 px-3 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-mono cursor-pointer">
+              <span>▶</span> 模擬執行此 Hook
+            </button>
+          </div>
+
+          <div id="content-2-md" class="space-y-3 text-xs leading-relaxed text-slate-300">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <h4 class="font-mono font-bold uppercase tracking-wider text-slate-400">Matcher 模式與比對規則</h4>
+                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                  <li><code class="text-sky-300 font-mono">matcher: "Bash"</code>：僅攔截 Bash 指令。</li>
+                  <li><code class="text-sky-300 font-mono">matcher: "Write|Edit"</code>：攔截檔案編輯寫入。</li>
+                  <li><code class="text-sky-300 font-mono">if: "Write(.env*)"</code>：利用 <code class="text-amber-300 font-mono">if</code> 語法更精準鎖定特定引數與路徑。</li>
+                </ul>
+              </div>
+              <div class="space-y-2">
+                <h4 class="font-mono font-bold uppercase tracking-wider text-slate-400">Exit Code 核心鐵律 (講課必考)</h4>
+                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong class="text-emerald-400">exit 0</strong>：放行執行工具。</li>
+                  <li><strong class="text-rose-400">exit 2</strong>：<strong>唯一能阻擋工具執行的狀態碼</strong>！Claude Code 收到 exit 2 時，會立刻取消調用該工具，並將導向到 <code class="text-rose-300 font-mono">stderr</code>（即 <code class="font-mono">&gt;&amp;2</code>）的文字傳回給模型作為阻擋原因！</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div id="content-2-config" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>.claude/settings.json</span>
+              <button onclick="copyToClipboard('cfg-2', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="cfg-2" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-sky-300 overflow-x-auto leading-relaxed">{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/06-hooks/pre-tool-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}</pre>
+          </div>
+
+          <div id="content-2-script" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>06-hooks/pre-tool-check.sh</span>
+              <button onclick="copyToClipboard('src-2', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="src-2" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed">#!/bin/bash
+# PreToolUse 安全檢查腳本
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+
+# 高危險指令比對
+if [[ "$COMMAND" =~ rm[[:space:]]+-rf || "$COMMAND" =~ push.*--force ]]; then
+  echo "【安全攔截】偵測到危險指令：$COMMAND" >&2
+  echo "禁止透過 AI 自動執行刪除整包目錄或強制推送！" >&2
+  exit 2 # 關鍵：exit 2 強制阻擋！
+fi
+
+exit 0 # 安全放行</pre>
+          </div>
+
+          <div id="content-2-payload" class="hidden space-y-2">
+            <span class="text-xs font-mono text-slate-400">傳入之 stdin JSON</span>
+            <pre id="payload-2-code" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 overflow-x-auto leading-relaxed">{
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "npm test"
+  }
+}</pre>
+          </div>
+
+          <div id="sim-2" class="hidden p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono">
+            <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 text-slate-400">
+              <span id="sim-2-title" class="text-emerald-400 font-bold">● 模擬執行輸出</span>
+              <span class="text-[10px] text-slate-500">耗時: 19ms</span>
+            </div>
+            <div id="sim-2-body" class="text-slate-300 leading-relaxed">
+              [HOOK: PreToolUse] 比對工具 Bash 指令：npm test<br>
+              指令合法，非黑名單項目。<br>
+              <span class="text-emerald-400 font-bold mt-1 inline-block">➔ Exit Code: 0 (放行執行)</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- 節點 4: Tool Execution -->
+      <!-- ================================================================= -->
+      <div id="node-3" class="node-item node-collapsed relative bg-slate-900 border border-slate-800 rounded-xl transition-all duration-200 overflow-hidden">
+        
+        <div onclick="toggleNode(3)" class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-850/80 transition-colors">
+          <div class="flex items-center space-x-3.5 relative z-10">
+            <div class="w-8 h-8 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center font-mono text-xs text-slate-300 font-bold shrink-0">
+              04
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">CORE_ENGINE</span>
+                <h3 class="font-mono text-sm font-bold text-slate-100">Tool Execution</h3>
+                <span class="text-xs text-slate-400 hidden sm:inline">— 核心工具實際調用</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">執行原生工具（Write 寫檔、Bash 跑指令、Edit 修改）</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80">
+              Native Tool
+            </span>
+            <svg class="chevron-icon w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="node-body p-5 border-t border-slate-800/80 bg-slate-950/70 space-y-3 text-xs text-slate-300 leading-relaxed">
+          <p>
+            只有在 <strong>PreToolUse 回傳 exit 0</strong> 時，才會進入此階段。Claude Code 會在此處真正對作業系統進行操作（例如調用 Node.js 的 <code class="font-mono text-sky-300">fs.writeFileSync</code> 或是產生子行程執行指令）。
+          </p>
+          <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-400">
+            // 工具執行完成，產出結果：<br>
+            Write("src/utils.ts") ➔ 142 bytes written.<br>
+            產出結果將立即作為 PostToolUse 的 tool_result 傳遞給下一個 Hook。
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- 節點 5: PostToolUse -->
+      <!-- ================================================================= -->
+      <div id="node-4" class="node-item node-collapsed relative bg-slate-900 border border-slate-800 rounded-xl transition-all duration-200 overflow-hidden">
+        
+        <div onclick="toggleNode(4)" class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-850/80 transition-colors">
+          <div class="flex items-center space-x-3.5 relative z-10">
+            <div class="w-8 h-8 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center font-mono text-xs text-slate-300 font-bold shrink-0">
+              05
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">POST_ACTION</span>
+                <h3 class="font-mono text-sm font-bold text-slate-100">PostToolUse</h3>
+                <span class="text-xs text-slate-400 hidden sm:inline">— 工具執行後自動處置</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">寫檔後自動調用 Prettier 原地格式化排版，或記錄執行 audit log</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              Auto-Format
+            </span>
+            <svg class="chevron-icon w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="node-body p-5 border-t border-slate-800/80 bg-slate-950/70 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+            <div class="flex items-center space-x-1 font-mono text-xs">
+              <button onclick="switchNodeTab(4, 'md')" id="tab-4-md" class="btn-action px-3 py-1 rounded bg-slate-800 text-sky-400 font-medium border border-slate-700 cursor-pointer">
+                規格手冊 (Markdown)
+              </button>
+              <button onclick="switchNodeTab(4, 'config')" id="tab-4-config" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                settings.json 設定
+              </button>
+              <button onclick="switchNodeTab(4, 'script')" id="tab-4-script" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                format-code.sh 代碼
+              </button>
+            </div>
+
+            <button onclick="runNodeSimulation(4)" class="btn-action flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono cursor-pointer">
+              <span>▶</span> 模擬執行此 Hook
+            </button>
+          </div>
+
+          <div id="content-4-md" class="space-y-3 text-xs leading-relaxed text-slate-300">
+            <p>
+              PostToolUse 無法取消已發生的修改，但它是落實<strong>「程式碼自動保潔 (Code Cleanliness)」</strong>的殺手鐧功能。
+              Claude 在產生程式碼時偶爾縮排不一，透過在 PostToolUse 綁定 Prettier，使用者甚至感覺不到排版過程，檔案就被原地格式化整齊了！
+            </p>
+          </div>
+
+          <div id="content-4-config" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>.claude/settings.json</span>
+              <button onclick="copyToClipboard('cfg-4', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="cfg-4" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-sky-300 overflow-x-auto leading-relaxed">{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./06-hooks/format-code.sh"
+          }
+        ]
+      }
+    ]
+  }
+}</pre>
+          </div>
+
+          <div id="content-4-script" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>06-hooks/format-code.sh</span>
+              <button onclick="copyToClipboard('src-4', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="src-4" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed">#!/bin/bash
+INPUT=$(cat)
+FILE=$(echo "$INPUT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+
+if [ -f "$FILE" ]; then
+  case "$FILE" in
+    *.ts|*.tsx|*.js)
+      prettier --write "$FILE" 2>/dev/null
+      ;;
+    *.py)
+      black "$FILE" 2>/dev/null
+      ;;
+  esac
+fi
+exit 0</pre>
+          </div>
+
+          <div id="sim-4" class="hidden p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono">
+            <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 text-slate-400">
+              <span class="text-emerald-400 font-bold">● 模擬執行輸出</span>
+              <span class="text-[10px] text-slate-500">耗時: 62ms</span>
+            </div>
+            <div class="text-slate-300 leading-relaxed">
+              [HOOK: PostToolUse] 偵測到 Write 工具完成。<br>
+              目標檔案：src/utils.ts<br>
+              調用 prettier --write src/utils.ts 原地排版完成！<br>
+              <span class="text-emerald-400 font-bold mt-1 inline-block">➔ Exit Code: 0 (排版成功)</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- 節點 6: Stop (Token Delta 計算) -->
+      <!-- ================================================================= -->
+      <div id="node-5" class="node-item node-collapsed relative bg-slate-900 border border-slate-800 rounded-xl transition-all duration-200 overflow-hidden">
+        
+        <div onclick="toggleNode(5)" class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-850/80 transition-colors">
+          <div class="flex items-center space-x-3.5 relative z-10">
+            <div class="w-8 h-8 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center font-mono text-xs text-slate-300 font-bold shrink-0">
+              06
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">TOKEN_DELTA</span>
+                <h3 class="font-mono text-sm font-bold text-slate-100">Stop</h3>
+                <span class="text-xs text-slate-400 hidden sm:inline">— 回答結束與 Token 統計 (context-tracker.py)</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5">Claude 回答完畢時觸發，計算本輪對話消耗之 Token Delta</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80">
+              Python 實測
+            </span>
+            <svg class="chevron-icon w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="node-body p-5 border-t border-slate-800/80 bg-slate-950/70 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+            <div class="flex items-center space-x-1 font-mono text-xs">
+              <button onclick="switchNodeTab(5, 'md')" id="tab-5-md" class="btn-action px-3 py-1 rounded bg-slate-800 text-sky-400 font-medium border border-slate-700 cursor-pointer">
+                規格手冊 (Markdown)
+              </button>
+              <button onclick="switchNodeTab(5, 'script')" id="tab-5-script" class="btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+                context-tracker.py 代碼
+              </button>
+            </div>
+
+            <button onclick="runNodeSimulation(5)" class="btn-action flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono cursor-pointer">
+              <span>▶</span> 模擬執行此 Hook
+            </button>
+          </div>
+
+          <div id="content-5-md" class="space-y-3 text-xs leading-relaxed text-slate-300">
+            <p>
+              這就是專案目錄下的 <code class="text-sky-300 font-mono">context-tracker.py</code> 最核心的亮點：
+              在 <code class="font-mono text-amber-300">UserPromptSubmit</code> 記下「提問前」Token，在 <code class="font-mono text-emerald-300">Stop</code> 計算「回答後」Token。
+              兩者一減，直接在終端機印出：
+            </p>
+            <pre class="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-sky-300">Context (estimated): ~12,450 tokens (1.2% used, ~987,550 remaining)
+This request: ~1,850 tokens</pre>
+          </div>
+
+          <div id="content-5-script" class="hidden space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>06-hooks/context-tracker.py</span>
+              <button onclick="copyToClipboard('src-5', this)" class="btn-action px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer">複製代碼</button>
+            </div>
+            <pre id="src-5" class="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed">def handle_stop(data: dict) -> None:
+    session_id = data.get("session_id", "unknown")
+    transcript_path = data.get("transcript_path", "")
+
+    transcript_content = read_transcript(transcript_path)
+    current_tokens = count_tokens_estimate(transcript_content)
+
+    state_file = get_state_file(session_id)
+    pre_tokens = 0
+    if os.path.exists(state_file):
+        with open(state_file, "r") as f:
+            pre_tokens = json.load(f).get("pre_tokens", 0)
+
+    delta_tokens = current_tokens - pre_tokens
+    print(f"Context: ~{current_tokens:,} tokens, This request: ~{delta_tokens:,} tokens", file=sys.stderr)</pre>
+          </div>
+
+          <div id="sim-5" class="hidden p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono">
+            <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 text-slate-400">
+              <span class="text-emerald-400 font-bold">● 模擬執行輸出</span>
+              <span class="text-[10px] text-slate-500">耗時: 11ms</span>
+            </div>
+            <div class="text-slate-300 leading-relaxed">
+              [HOOK: Stop] 讀取對話歷史 transcript 完畢。<br>
+              <span class="text-sky-300 font-bold">Context (estimated): ~14,210 tokens (1.4% used, ~985,790 remaining)</span><br>
+              <span class="text-emerald-400 font-bold">This request: ~920 tokens</span><br>
+              <span class="text-emerald-400 font-bold mt-1 inline-block">➔ Exit Code: 0</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- 底部版權與狀態 -->
+  <footer class="border-t border-slate-800/80 py-6 text-center text-xs font-mono text-slate-500">
+    Claude Code Official Course ‧ Chapter 06: Hooks Lifecycle Timeline
+  </footer>
+
+  <script>
+    // =========================================================================
+    // 全域狀態機與按鈕控制邏輯 (確保所有按鈕 100% 能點擊、能複製、能模擬)
+    // =========================================================================
+    let currentScenario = 'allow';
+    let isAutoPlaying = false;
+    let autoPlayTimer = null;
+    let allExpanded = false;
+
+    // 展開 / 收合單一節點
+    function toggleNode(index) {
+      const node = document.getElementById(`node-${index}`);
+      if (!node) return;
+
+      if (node.classList.contains('node-expanded')) {
+        node.classList.remove('node-expanded');
+        node.classList.add('node-collapsed');
+      } else {
+        node.classList.remove('node-collapsed');
+        node.classList.add('node-expanded');
+      }
+    }
+
+    // 展開 / 收合全部節點
+    function toggleExpandAll() {
+      allExpanded = !allExpanded;
+      const btn = document.getElementById('btn-expand-all');
+      btn.textContent = allExpanded ? "收合全部" : "展開全部";
+
+      for (let i = 0; i <= 5; i++) {
+        const node = document.getElementById(`node-${i}`);
+        if (node) {
+          if (allExpanded) {
+            node.classList.remove('node-collapsed');
+            node.classList.add('node-expanded');
+          } else {
+            node.classList.remove('node-expanded');
+            node.classList.add('node-collapsed');
+          }
+        }
+      }
+    }
+
+    // 切換節點內部的分頁標籤 (Markdown / settings / script / payload)
+    function switchNodeTab(nodeIndex, tabName) {
+      const tabs = ['md', 'config', 'script', 'payload'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-${nodeIndex}-${t}`);
+        const content = document.getElementById(`content-${nodeIndex}-${t}`);
+        if (btn && content) {
+          if (t === tabName) {
+            btn.className = "btn-action px-3 py-1 rounded bg-slate-800 text-sky-400 font-medium border border-slate-700 cursor-pointer";
+            content.classList.remove('hidden');
+          } else {
+            btn.className = "btn-action px-3 py-1 rounded bg-slate-900 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
+            content.classList.add('hidden');
+          }
+        }
+      });
+    }
+
+    // 模擬執行 Hook 測試
+    function runNodeSimulation(nodeIndex) {
+      const simBox = document.getElementById(`sim-${nodeIndex}`);
+      if (!simBox) return;
+
+      simBox.classList.remove('hidden');
+      simBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // 一鍵複製代碼到剪貼簿 (真機剪貼簿 API)
+    function copyToClipboard(elementId, btn) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+
+      const text = el.innerText || el.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.textContent;
+        btn.textContent = "✓ 已複製！";
+        btn.classList.add('text-emerald-400', 'border-emerald-500/50');
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('text-emerald-400', 'border-emerald-500/50');
+        }, 1800);
+      }).catch(err => {
+        console.error("複製失敗：", err);
+      });
+    }
+
+    // 情境切換：正常放行 vs PreToolUse 阻擋
+    function setScenario(scen) {
+      currentScenario = scen;
+      const btnAllow = document.getElementById('btn-scen-allow');
+      const btnBlock = document.getElementById('btn-scen-block');
+      const bannerText = document.getElementById('banner-scenario-text');
+
+      const circlePre = document.getElementById('circle-node-2');
+      const badgePreTag = document.getElementById('badge-pretool-tag');
+      const badgePreStatus = document.getElementById('badge-pretool-status');
+      const nodePre = document.getElementById('node-2');
+      const simTitle = document.getElementById('sim-2-title');
+      const simBody = document.getElementById('sim-2-body');
+      const payloadCode = document.getElementById('payload-2-code');
+
+      if (scen === 'block') {
+        btnBlock.className = "btn-action px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40 cursor-pointer";
+        btnAllow.className = "btn-action px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-slate-200 cursor-pointer";
+        bannerText.textContent = "危險指令攔截 (rm -rf) ➔ Exit 2 阻擋中";
+        bannerText.className = "text-rose-400 font-bold";
+
+        nodePre.className = "node-item node-expanded relative bg-slate-900 border-2 border-rose-500/70 rounded-xl transition-all duration-200 overflow-hidden shadow-lg shadow-rose-500/10";
+        circlePre.className = "w-8 h-8 rounded-full border border-rose-500 bg-slate-950 flex items-center justify-center font-mono text-xs text-rose-400 font-bold shrink-0";
+        badgePreTag.className = "px-1.5 py-0.5 rounded text-[10px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40";
+        badgePreTag.textContent = "BLOCKED_BY_POLICY";
+        badgePreStatus.className = "text-[11px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold";
+        badgePreStatus.textContent = "阻擋 (Exit 2)";
+
+        payloadCode.textContent = JSON.stringify({
+          tool_name: "Bash",
+          tool_input: { command: "rm -rf /tmp/data && git push origin main --force" }
+        }, null, 2);
+
+        simTitle.className = "text-rose-400 font-bold";
+        simTitle.textContent = "● 攔截執行輸出 (Exit 2 BLOCKED)";
+        simBody.innerHTML = `[HOOK: PreToolUse] 審查 Bash 指令：rm -rf /tmp/data...<br>
+<span class="text-rose-400 font-bold">【安全拒絕】偵測到破壞性指令：rm -rf！</span><br>
+stderr 回傳給 Claude：禁止透過 AI 自動執行刪除整包目錄。<br>
+<span class="text-rose-400 font-bold mt-1 inline-block">➔ Exit Code: 2 (工具調用已被強制中止！)</span>`;
+
+        // 確保 PreToolUse 節點展開
+        nodePre.classList.remove('node-collapsed');
+        nodePre.classList.add('node-expanded');
+        runNodeSimulation(2);
+
+      } else {
+        btnAllow.className = "btn-action px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer";
+        btnBlock.className = "btn-action px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-slate-200 cursor-pointer";
+        bannerText.textContent = "正常放行 ➔ 寫檔排版 (Exit 0)";
+        bannerText.className = "text-emerald-400 font-bold";
+
+        nodePre.className = "node-item node-expanded relative bg-slate-900 border-2 border-sky-500/50 rounded-xl transition-all duration-200 overflow-hidden shadow-lg shadow-sky-500/5";
+        circlePre.className = "w-8 h-8 rounded-full border border-sky-400 bg-slate-950 flex items-center justify-center font-mono text-xs text-sky-400 font-bold shrink-0";
+        badgePreTag.className = "px-1.5 py-0.5 rounded text-[10px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/40";
+        badgePreTag.textContent = "CRITICAL_GATE";
+        badgePreStatus.className = "text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold";
+        badgePreStatus.textContent = "放行 (Exit 0)";
+
+        payloadCode.textContent = JSON.stringify({
+          tool_name: "Bash",
+          tool_input: { command: "npm test" }
+        }, null, 2);
+
+        simTitle.className = "text-emerald-400 font-bold";
+        simTitle.textContent = "● 模擬執行輸出";
+        simBody.innerHTML = `[HOOK: PreToolUse] 比對工具 Bash 指令：npm test<br>
+指令合法，非黑名單項目。<br>
+<span class="text-emerald-400 font-bold mt-1 inline-block">➔ Exit Code: 0 (放行執行)</span>`;
+      }
+    }
+
+    // 自動循環播放展示
+    function toggleAutoPlay() {
+      if (isAutoPlaying) {
+        stopAutoPlay();
+      } else {
+        startAutoPlay();
+      }
+    }
+
+    let playIndex = 0;
+    function startAutoPlay() {
+      isAutoPlaying = true;
+      document.getElementById('play-icon').textContent = "⏸";
+      document.getElementById('play-text').textContent = "暫停播放";
+
+      playIndex = 0;
+      autoPlayTimer = setInterval(() => {
+        // 先收合其他
+        for (let i = 0; i <= 5; i++) {
+          const node = document.getElementById(`node-${i}`);
+          if (node) {
+            node.classList.remove('node-expanded');
+            node.classList.add('node-collapsed');
+          }
+        }
+        // 展開當前
+        const target = document.getElementById(`node-${playIndex}`);
+        if (target) {
+          target.classList.remove('node-collapsed');
+          target.classList.add('node-expanded');
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          runNodeSimulation(playIndex);
+        }
+
+        playIndex++;
+        if (playIndex > 5) {
+          playIndex = 0;
+        }
+      }, 3500);
+    }
+
+    function stopAutoPlay() {
+      isAutoPlaying = false;
+      clearInterval(autoPlayTimer);
+      document.getElementById('play-icon').textContent = "▶";
+      document.getElementById('play-text').textContent = "自動循序播放";
+    }
+
+    // 鍵盤導航事件監聽
+    let activeKeyIndex = 2;
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (activeKeyIndex < 5) {
+          activeKeyIndex++;
+          const target = document.getElementById(`node-${activeKeyIndex}`);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (activeKeyIndex > 0) {
+          activeKeyIndex--;
+          const target = document.getElementById(`node-${activeKeyIndex}`);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        toggleNode(activeKeyIndex);
+      }
+    });
+  </script>
+</body>
+</html>

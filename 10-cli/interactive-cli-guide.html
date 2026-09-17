@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code CLI (命令列大師與無頭批次自動化) 動態互動教學指南 | 10-cli</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          },
+          colors: {
+            cli: {
+              accent: '#10b981',
+              pipe: '#38bdf8',
+              batch: '#f59e0b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #11221c 0%, #06100d 100%);
+      color: #e2e8f0;
+    }
+    .glass-panel {
+      background: rgba(14, 28, 23, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-300">
+
+  <!-- 頂部導航 -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-300 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-emerald-500/20">
+          💻
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Chapter 10</span>
+            <h1 class="text-xl font-bold tracking-tight text-white">CLI (命令列大師與無頭批次自動化) 教學台</h1>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">不開介面的全自動化 (Headless) ‧ Unix 管道管線串接 ‧ CI/CD 批次處理</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 text-xs">
+        <button onclick="setCliMode('interactive')" id="btn-cli-inter" class="px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300">
+          💬 互動交談模式 (單人手動)
+        </button>
+        <button onclick="setCliMode('headless')" id="btn-cli-head" class="px-3.5 py-1.5 rounded-lg font-bold transition-all bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20">
+          ⚙️ 無頭批次流水線 (Headless CI/CD)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 教學心法：無人黑燈工廠比喻 -->
+    <div class="glass-panel rounded-2xl p-5 relative border-l-4 border-l-emerald-500">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-emerald-400 font-bold text-sm">💡 教學心法：自動化「無人黑燈工廠 (Lights-Out Automation)」模型</span>
+            <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">從單兵作業躍升至流水線</span>
+          </div>
+          <p class="text-sm text-slate-300 leading-relaxed">
+            跟學生說：如果你只會開著終端機跟 Claude 一句一句聊天，你只發揮了它 20% 的價值。
+            <strong>真正頂級的工程師，是把 Claude Code 嵌入到腳本與 CI/CD 流程中</strong>！
+            使用 <code class="text-emerald-300 font-mono">claude -p "..."</code> 搭配 Unix 管道符號 <code class="text-emerald-300 font-mono">|</code>，下班後讓它自動掃描 100 個 PR、修復所有 Lint 錯誤並寫出報告，完全不需人類動手！
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上半部：Unix 管道輸送帶動態視覺 (Piping Flow) -->
+    <div class="glass-panel rounded-2xl p-6 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold tracking-wider uppercase text-slate-400 flex items-center gap-2">
+          <span>管道輸送帶流程 (Unix Pipeline Automation)</span>
+        </h3>
+        <span id="cli-badge" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          無頭模式 (Headless / Non-Interactive)
+        </span>
+      </div>
+
+      <!-- 管道輸送三階段 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 py-4">
+        
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center">
+          <div class="text-2xl mb-1">📄</div>
+          <div class="text-xs font-mono text-slate-400 uppercase font-bold">Step 1: 資料來源</div>
+          <h4 class="text-sm font-bold text-white mt-1">git diff 或檔案內容</h4>
+          <div class="mt-3 p-2 rounded bg-slate-950 font-mono text-xs text-sky-300">git diff origin/main</div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-950 border-2 border-emerald-500 shadow-lg shadow-emerald-500/10 text-center flex flex-col justify-between">
+          <div>
+            <div class="text-2xl mb-1">⚡</div>
+            <div class="text-xs font-mono text-emerald-400 uppercase font-bold">Step 2: 管道串接 (Pipe)</div>
+            <h4 class="text-sm font-bold text-white mt-1">Claude Headless 核心運算</h4>
+          </div>
+          <div class="my-2 p-2 rounded bg-slate-900 font-mono text-xs text-emerald-300">| claude -p "產出資安審查報告"</div>
+          <div class="text-[10px] text-slate-500">不跳對話視窗，全自動執行</div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center">
+          <div class="text-2xl mb-1">📊</div>
+          <div class="text-xs font-mono text-slate-400 uppercase font-bold">Step 3: 產物輸出</div>
+          <h4 class="text-sm font-bold text-white mt-1">直接寫入檔案或 PR 評論</h4>
+          <div class="mt-3 p-2 rounded bg-slate-950 font-mono text-xs text-amber-300">> security-report.md</div>
+        </div>
+
+      </div>
+
+      <!-- 講稿橫幅 -->
+      <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-start gap-3 mt-2">
+        <div class="text-2xl mt-0.5" id="narration-icon">⚙️</div>
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold font-mono text-emerald-400 uppercase" id="narration-stage">無頭自動化演示</span>
+            <span class="text-xs text-slate-500">[Batch Processing]</span>
+          </div>
+          <p class="text-sm text-slate-200" id="narration-text">
+            透過這條指令，CI/CD 每次有新 PR 時會自動呼叫 Claude 進行資安掃描，並在 30 秒內將乾淨的 Markdown 報告貼在 GitHub 上！
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下半部：即時三欄實戰指令對照 (單行指令 | Shell 批次腳本 | CI/CD GitHub Action) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <h3 class="text-sm font-bold text-white">1. 單行管道指令 (Pipe)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">CLI One-Liner</span>
+        </div>
+        <pre class="w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 overflow-auto leading-relaxed"># 審查當前分支的所有改動並寫入檔案：
+git diff main | claude -p \
+  "依據 Clean Code 原則審查此 diff，列出問題" \
+  > review-output.md
+
+# 或是批次修復語法錯誤：
+cat errors.log | claude -p \
+  "分析此報錯日誌，直接修改對應原始碼修正它"</pre>
+      </div>
+
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+            <h3 class="text-sm font-bold text-white">2. 批次處理腳本 (Batch Script)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">batch.sh</span>
+        </div>
+        <pre class="w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-sky-300 overflow-auto leading-relaxed">#!/bin/bash
+# 批次為所有 .ts 檔案加上 JSDoc 文件
+for file in src/**/*.ts; do
+  echo "正在為 $file 生成文件..."
+  claude -p "為 $file 裡面的匯出函式補上繁體中文 JSDoc 註解" \
+    --allowed-tools Edit,Write
+done
+echo "全部處理完成！"</pre>
+      </div>
+
+      <div class="glass-panel rounded-2xl p-5 flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            <h3 class="text-sm font-bold text-white">3. CI/CD 整合 (GitHub Action)</h3>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">.github/workflows/</span>
+        </div>
+        <pre class="w-full h-56 p-3.5 mt-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-amber-300 overflow-auto leading-relaxed">- name: Claude AI PR Review
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  run: |
+    npm install -g @anthropic-ai/claude-code
+    claude -p "審查此 PR 的安全性與測試覆蓋率" \
+      --output-format json > pr-comment.json</pre>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    function setCliMode(mode) {
+      const btnInter = document.getElementById('btn-cli-inter');
+      const btnHead = document.getElementById('btn-cli-head');
+      const badge = document.getElementById('cli-badge');
+
+      if (mode === 'headless') {
+        btnHead.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20";
+        btnInter.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        badge.textContent = "無頭模式 (Headless / Non-Interactive)";
+        badge.className = "px-2.5 py-0.5 rounded-full text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
+        document.getElementById('narration-icon').textContent = "⚙️";
+        document.getElementById('narration-stage').textContent = "無頭自動化演示";
+        document.getElementById('narration-text').textContent = "無人黑燈工廠啟動！透過管道串接，AI 完全自動執行並輸出報告，適合 CI/CD 自動化。";
+      } else {
+        btnInter.className = "px-3.5 py-1.5 rounded-lg font-bold transition-all bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20";
+        btnHead.className = "px-3.5 py-1.5 rounded-lg font-medium transition-all bg-slate-800 hover:bg-slate-700 text-slate-300";
+        badge.textContent = "互動交談模式 (Interactive REPL)";
+        badge.className = "px-2.5 py-0.5 rounded-full text-xs font-mono bg-sky-500/10 text-sky-400 border border-sky-500/30";
+        document.getElementById('narration-icon').textContent = "💬";
+        document.getElementById('narration-stage').textContent = "互動對話演示";
+        document.getElementById('narration-text').textContent = "標準終端機對話模式：工程師輸入一個指令，Claude 回答並詢問確認，適合本機探索與即時 Debug。";
+      }
+    }
+  </script>
+</body>
+</html>
