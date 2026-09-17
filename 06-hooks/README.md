@@ -737,6 +737,30 @@ hooks:
 | **2** | 阻擋型錯誤 | 阻擋操作，stderr 顯示為錯誤 |
 | **其他** | 非阻擋型錯誤 | 繼續執行，stderr 在詳細模式下顯示 |
 
+> ⚠️ **`exit 1` 不會擋。** Unix 慣例上非零就是失敗，但這裡只有 `2` 是「阻止」——
+> 其他非零只代表「這支 hook 自己出錯了」，動作照樣執行完。
+> 現場想驗證：把擋 `.env` 的 hook 從 `exit 2` 改成 `exit 1` 再試一次，檔案會真的被寫出去。
+
+### 哪些事件擋得住（`exit 2` 的效果因事件而異）
+
+前面每個事件章節都各自寫了「可阻擋」，這裡併成一張表方便查：
+
+| 事件 | 擋得住嗎 | `exit 2` 的效果 |
+|---|---|---|
+| `PreToolUse` | ✅ | 這次工具呼叫不執行 |
+| `UserPromptSubmit` | ✅ | 阻擋處理，**而且會把你的 prompt 清掉** |
+| `UserPromptExpansion` | ✅ | 阻擋這次展開 |
+| `Stop` / `SubagentStop` | ✅ | **不准它停** —— 對話繼續跑下去 |
+| `PreModelSwitch` | ✅ | 維持目前的模型，不切換 |
+| `PostToolUse` | ❌ | 工具已經執行完了，來不及 |
+| `PostModelSwitch` | ❌ | 切換已經發生，只能觀察 |
+| `SessionStart` | ❌ | `exit 2` 被當成沒擋 |
+| `PermissionRequest` | ❌ | 不吃 `exit 2`，要用 `decision` 物件拒絕 |
+
+**`Stop` 那一列是最有想像空間的**：exit 2 的意思是「不准它停下來」。
+所以「檢查這一輪的產出，不合格就叫它重做」只要三行 —— 檢查、不合格就
+`echo 理由 >&2; exit 2`。自動迴圈型的 plugin（例如 `ralph-wiggum`）就是這樣做的。
+
 ### JSON 輸出（stdout，exit code 0）
 
 ```json
@@ -1617,6 +1641,37 @@ chmod +x ~/.claude/hooks/*.sh
 - **[子代理](../04-subagents/)** - 委派任務執行
 - **[外掛](../07-plugins/)** - 打包好的擴充套件
 - **[進階功能](../09-advanced-features/)** - 探索 Claude Code 的進階能力
+
+## 想直接演一次？有一個設好的專案
+
+講 hook 最有效的方式是**當場擋一次給人看**，但那需要一個 `.claude/` 已經設好、
+而且擋下來的時候「看得出它在擋什麼」的專案。
+
+[`agenticRAG-ClaudeAgentSDK`](https://github.com/kevin801221/agenticRAG-ClaudeAgentSDK)
+的 `.claude/` 掛了五個示範用的 hook，clone 下來 `claude` 一開就會動：
+
+| 腳本 | 事件 | 一行觸發 | 學生會看到 |
+|---|---|---|---|
+| `session-start.sh` | SessionStart | 打 `claude` | 開場就知道分支、索引有幾個片段 |
+| `prompt-context.sh` | UserPromptSubmit | 問「現在幾點？」 | 它不用跑 `date` 就答得出來 |
+| `guard-secrets.sh` | PreToolUse | 「把 key 寫進 `.env`」 | **當場被擋**，而且 Claude 自己說改寫去 `.env.example` |
+| `audit-bash.sh` | PostToolUse | 叫它 `ls` | `.claude/logs/bash-audit.log` 多一筆 |
+| `done.sh` | Stop | 任何一輪結束 | 叮一聲 + 改了幾個檔 |
+
+那個專案本身是 Agentic RAG 的教材，所以還能接著講**同一個概念的另一層**：
+它的 `modules.py` 用 Agent SDK 的 `HookMatcher` 做 `PreToolUse`/`PostToolUse`，
+網頁上那條一格一格亮起來的流程圖就是這樣畫出來的。
+
+| | Claude Code CLI | Claude Agent SDK |
+|---|---|---|
+| 設定在哪 | `.claude/settings.json` | `ClaudeAgentOptions(hooks=...)` |
+| hook 是什麼 | 一支外部腳本 | 一個 async 函式 |
+| 怎麼收輸入 | stdin 拿 JSON | 參數 `(data, tool_use_id, context)` |
+| 怎麼擋 | `exit 2` | 回傳阻止用的 dict |
+
+> **教學金句**：「你在 CLI 學的 hook，換個寫法就是 SDK 的 hook。」
+
+帶課譜看 [`docs/walkthroughs/hook_walkthrough.md`](../docs/walkthroughs/hook_walkthrough.md)（90 分鐘完整版）。
 
 ## 延伸資源
 

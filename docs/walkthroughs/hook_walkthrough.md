@@ -1034,11 +1034,13 @@ curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" 
 
 ---
 
-## 卡點對照表 ⭐ 學生最常踩的 10 個坑
+## 卡點對照表 ⭐ 學生最常踩的坑
 
 | 卡點 | 真實原因 | 處理 |
 |---|---|---|
-| Hook 完全不跑也不報錯 | 改完 settings.json 沒重啟 Claude Code | `/exit` 重開 |
+| Hook 完全不跑也不報錯 | 多半是路徑或執行權限，**不是沒重啟** | `settings.json` 的改動有 file watcher 在看，不用重開。先手動 `echo '{}' \| .claude/hooks/x.sh` 試一次，再 `chmod +x` |
+| 改了 **plugin / skill** 的 hook 沒生效 | 那類的生命週期跟 settings 不同 | plugin 的要重開；skill 的要等它下次被叫起來 |
+| `unbound variable`，而且變數後面接著中文 | macOS 的 bash 會把全形字的位元組當成變數名的一部分 | 一律寫 `${var}` 不要寫 `$var` |
 | Hook 找不到指令（`command not found`） | GUI 啟動的 Claude Code 缺 PATH | hook 開頭加 `export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"` |
 | `exit 2` 沒讓 Claude 改行為 | 你 echo 到 stdout 而不是 stderr | 改成 `echo "..." >&2` |
 | matcher 寫成 `"Write, Edit"` 不 work | matcher 是 regex 不是逗號清單 | 改成 `"Write\|Edit"`（pipe = OR） |

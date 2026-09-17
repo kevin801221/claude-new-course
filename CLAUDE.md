@@ -29,6 +29,7 @@ claude-code-complete-tutorial/
 ├── build_ppt_完整版.js                ← 完整版 PPT 源碼 ⭐
 ├── build_ppt_教學版.js                ← 教學版 PPT 源碼
 ├── build_ppt/                         ← 同上的 backup 副本
+├── 01-slash-commands/ … 10-cli/       ⭐ **十個編號章節＝課程主幹**（見下方「章節」一節）
 ├── .claude/                           ← 本 repo 自己的 Claude Code 設定（會生效！見下節）
 │   ├── settings.json                  (掛了 guard-secrets + notify-done hook)
 │   ├── hooks/                         (8 支教學 hook 腳本 + 對照表 README)
@@ -39,6 +40,7 @@ claude-code-complete-tutorial/
 │   ├── agent_team_walkthrough.md      (08 用 agent team 蓋 Kanban 看板)
 │   ├── four_skills_walkthrough.md     (四技能組合)
 │   ├── hook_walkthrough.md            (Hooks 心智模型)
+│   ├── agentic_rag_walkthrough.md     (Agentic RAG 120 分鐘課：四工具=六種 pattern、prompt 是授權書)
 │   ├── gitnexus_walkthrough.md        (GitNexus knowledge graph 工具深入・Part 10/16)
 │   ├── karpathy_skills_walkthrough.md (Karpathy 4 原則 + 最小 plugin 解剖・Part 6/11)
 │   └── anthropics_marketplace_skills_walkthrough.md
@@ -66,9 +68,42 @@ claude-code-complete-tutorial/
 │   └── stock-groups-skills/            (多 agent 個股研究團隊：4 分析師平行鏡頭 + 彙整，已設計)
 ├── agent_teams/                       ← 多 Claude 實例平行 git worktree 協作（有總覽 README.md）
 │   └── ios-app-flutter-dev/            (原生 Agent teams 蓋 arXiv 每日論文閱讀器 App：研究先行→凍結規格與 API 契約→三隊友平行 backend/reader/breathing→整合驗收)
+├── agentic_RAG/                       ← Agentic RAG 教學專案的**舊版本**（已獨立成公開 repo）
+│                                        現行版本：github.com/kevin801221/agenticRAG-ClaudeAgentSDK
+│                                        本機開發目錄在 ~/agentic-rag-workshop。這裡留著當內部版
+│                                        （語料是全套教材，檢索效果比公開版的 41 片段好）
 ├── context-engineering-intro/         ← Context Engineering（PRP 流程）參考素材
 └── 心法/                              ← user 放原始 PDF 心法資料
 ```
+
+## 十個編號章節（課程主幹，改教材先看這裡）
+
+每一章都是「一份 README 參考手冊 ＋ 幾支可以直接跑的範例」。
+README 是照官方文件整理的完整參考，範例是拿來現場 demo 的。
+
+| 章節 | 主題 | 檔案數 | 配套帶課譜 |
+|---|---|---|---|
+| `01-slash-commands/` | 斜線指令 | 10 | — |
+| `02-memory/` | 記憶（CLAUDE.md、`#` 記憶） | 6 | — |
+| `03-skills/` | Agent Skills | 7 | `four_skills_walkthrough.md`、`karpathy_skills_walkthrough.md` |
+| `04-subagents/` | 子代理 | 10 | `agent_team_walkthrough.md` |
+| `05-mcp/` | MCP | 5 | — |
+| `06-hooks/` | **Hooks** | 12 | `hook_walkthrough.md`（90 分鐘、Phase 0–7） |
+| `07-plugins/` | 外掛 | 4 | `anthropics_marketplace_skills_walkthrough.md` |
+| `08-checkpoints/` | 檢查點與回溯 | 2 | — |
+| `09-advanced-features/` | 進階功能 | 4 | — |
+| `10-cli/` | CLI 參考 | 1 | — |
+
+### 改這些章節的規矩
+
+1. **章節 README 是參考手冊，不是帶課譜。** 想寫「現場怎麼帶」就去 `docs/walkthroughs/`，
+   別把兩種東西混在同一份裡。
+2. **動到某一章之前，先搜尋 `docs/walkthroughs/` 有沒有既有的那一份。**
+   例：hooks 已經有 `06-hooks/README.md`（1635 行）＋ `hook_walkthrough.md`（1144 行），
+   再開第三份只會變成三份互相矛盾的教材。
+3. **需要「可以當場跑」的示範環境**（例如 hook 要真的擋一次給人看）時，
+   那個 `.claude/` 要放在**學生會用 `claude` 打開的那個 repo**，不是放在章節資料夾裡。
+   目前 `agenticRAG-ClaudeAgentSDK` 的 `.claude/` 就是 06-hooks 的活體示範。
 
 ## 本 repo 自己的 `.claude/` 會生效（接手前先知道）
 
@@ -244,5 +279,8 @@ PDF 來源放 `心法/` 資料夾。
 最後更新：2026-05-22 by Claude (cowork session) — 補三處缺口：(1) 設計 agent_group_projects/stock-groups-skills（多 agent 個股研究團隊：基本面/技術面/新聞情緒 3 分析師 + research-synthesizer 彙整，含 README/CLAUDE.md/WALKTHROUGH/4 agent/_Context/starter script，全程「非投資建議」免責）；(2) 設計 agent_teams/ios-app-flutter-dev（多 Claude 平行 git worktree 蓋 Flutter 冥想 App，研究先行→規格凍結→平行→merge，含 setup-worktrees.sh + 兩個論文搜集研究 worktree 說明）+ 新增 agent_teams/ 總覽 README；(3) 新增 agent_group_projects/ 總覽 README（案例表 + 晶圓三件套差異 + 學習順序）。註：computer-vision-allblank-forblank 仍待設計。
 最後更新：2026-05-22 by Claude (cowork session) — important-plugins/ 再加兩個最受歡迎的官方 plugin 當教學解剖標的：ralph-wiggum（Anthropic 官方，Stop hook 自動迴圈，對應 Part 9 Hooks）、pr-review-toolkit（Anthropic 官方，6 個 review sub-agent + 調度，對應 Part 7 Sub-agents），皆從 anthropics/claude-code/plugins 取出、去巢狀 .git、保留原 README。各寫一份繁中 walkthrough（ralph_wiggum_walkthrough.md、pr_review_toolkit_walkthrough.md）。新增 important-plugins/README.md 索引（pillar 對照 + 出處/授權標註：superpowers=Skills、ralph-wiggum=Hooks、pr-review-toolkit=Sub-agents）。
 最後更新：2026-05-22 by Claude (cowork session) — 新增 important-plugins/plugins_install_and_cases_walkthrough.md（三支一起的安裝+實戰教案）：marketplace add 指令（claude-plugins-official=anthropics/claude-plugins-official、claude-code-plugins=anthropics/claude-code、superpowers-marketplace=obra/superpowers-marketplace）、各 plugin install 指令（superpowers@claude-plugins-official、ralph-wiggum@claude-code-plugins、pr-review-toolkit 兩店皆有）、三個逐步 prompt 案例（superpowers 短網址 API、ralph todo API 自動迴圈、pr-review-toolkit PR 審查含 /pr-review-toolkit:review-pr namespace）。指令均對 marketplace.json 查證。
+最後更新：2026-09-13 by Claude (cowork session) — 新增 agentic_RAG/ 教學專案：**用 Claude Agent SDK 組合 Agentic RAG 架構**。核心主張：CRAG/Self-RAG/Adaptive-RAG/HyDE/RAG-Fusion 不是各自獨立的系統，是同一組模組的不同編排（Modular RAG）——模組=@tool、編排=system prompt、架構=modules.py 的 Architecture dataclass，換架構不改程式碼。主教材是 notebooks/ 兩本（01 SDK 入門：query/@tool/hooks；02 架構組合：七個架構實跑+自己組），網頁 app.py 是現場 demo 殼、有架構選單可當場切換比較軌跡，與 notebook 共用 modules.py。七模組依 Modular RAG 階段分類（list_corpus / multi_search / hyde_search / search / grade_documents / expand / diversify(MMR)）。預設走 OAuth 訂閱不用 API key，LLM 層可插拔（ANTHROPIC_BASE_URL 接相容端點／ENGINE=litellm 接 OpenAI·Gemini·Ollama）。本地 BM25(jieba)+向量(e5-small/MPS)+RRF，向量掛掉自動降級。配套教案 docs/walkthroughs/agentic_rag_walkthrough.md。
+最後更新：2026-09-14 by Claude (cowork session) — agentic_RAG 獨立成公開 repo github.com/kevin801221/agenticRAG-ClaudeAgentSDK（MIT，本機在 ~/agentic-rag-workshop）。新增：5 個純政策架構（Rewrite-Retrieve-Read / Self-Ask / IRCoT / FLARE / Search-o1，共 14 個）、PDF 語料（依頁切塊、引用可翻頁）、CRAG 補上論文的 WebSearch 分支、向量 store 可插拔（numpy/chroma）、流程圖可收合、文件工作台（可拖分隔線／區域框 AI Anchor／只談該文件的 doc_chat）、筆記本（存問答＋框選截圖，可匯出 Markdown）、**上傳文件由 agent 決定切法與是否補脈絡（Contextual Retrieval，索引期 agentic）**。教案 docs/walkthroughs/agentic_rag_walkthrough.md 同步更新，新增 Phase 6（索引期）。
 
 # 基於我可能會換很多的 AI Agent, 請在每一次執行後跟使用者討論要儲存什麼 changelog.md, 我會決定是否要保留。這麼做是因為要切換很多的 Agent 的時候可以無縫接軌（記憶）。
+最後更新：2026-09-17 by Claude (CLI session) — 檔案結構補上十個編號章節（01-slash-commands … 10-cli），那是現在的課程主幹但結構圖裡完全沒有，導致新 session 會在別處重複造一份教材。新增「改這些章節的規矩」三條：章節 README 是參考手冊不是帶課譜、動之前先搜 docs/walkthroughs/ 有沒有既有的、需要現場可跑的示範環境時 .claude/ 要放在學生會打開的那個 repo。另外 06-hooks/README.md 補上「哪些事件擋得住」對照表與現成 demo 的指路，hook_walkthrough.md 訂正「改完要重啟」那條卡點（settings 有 file watcher，不用重啟）。
